@@ -16,6 +16,7 @@ class Settings:
     poll_interval: float = 1.0
     tx_timeout_ms: int = 200
     retry_after: int = 2
+    db_wait_seconds: float = 5
     max_attachment_bytes: int = 10 * 1024 * 1024
 
     @classmethod
@@ -34,4 +35,5 @@ class Settings:
             poll_interval=float(env.get("POLL_INTERVAL", "1.0")),
             tx_timeout_ms=int(env.get("TX_TIMEOUT_MS", "200")),
             retry_after=int(env.get("WRITE_BLOCK_RETRY_AFTER", "2")),
+            db_wait_seconds=float(env.get("DB_WAIT_SECONDS", "5")),
         )

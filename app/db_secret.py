@@ -1,4 +1,7 @@
+import asyncio
 import json
+import time
+from collections.abc import Callable
 
 import boto3
 
@@ -12,3 +15,27 @@ def fetch_db_credentials(secret_id: str) -> tuple[str, str]:
     client = boto3.client("secretsmanager")
     secret = json.loads(client.get_secret_value(SecretId=secret_id)["SecretString"])
     return secret["username"], secret["password"]
+
+
+class DbCredentials:
+    """새 DB 연결마다 쓸 자격 증명. 회전에 대비해 주기적으로, 인증 실패 시에는 즉시 다시 읽는다.
+
+    기존 연결은 비밀번호가 바뀌어도 유지되므로, 이 캐시는 새 연결에만 영향을 준다.
+    """
+
+    def __init__(self, fetch: Callable[[], tuple[str, str]], ttl_seconds: float = 300):
+        self._fetch = fetch
+        self._ttl = ttl_seconds
+        self._value: tuple[str, str] | None = None
+        self._fetched_at = 0.0
+        self._lock = asyncio.Lock()
+
+    async def get(self) -> tuple[str, str]:
+        async with self._lock:
+            if self._value is None or time.monotonic() - self._fetched_at > self._ttl:
+                self._value = await asyncio.to_thread(self._fetch)
+                self._fetched_at = time.monotonic()
+            return self._value
+
+    def invalidate(self) -> None:
+        self._value = None
