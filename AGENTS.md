@@ -5,7 +5,7 @@
 ## 작업 전에
 
 1. 작업은 `platform`의 `docs/tasks.md`와 이슈에서 찾는다(데모 앱은 주로 T4 · T22). 진행 상황의 기준은 [프로젝트 보드](https://github.com/orgs/Softbank-Hackathon-Finals/projects/2)다.
-2. `main`은 보호돼 있다. 브랜치에서 작업하고 PR로 올린다(CI 통과 시 자동 머지). `.github/workflows/`와 `CODEOWNERS`를 바꾸는 PR만 본인 외 팀원 1명의 승인이 필요하다.
+2. `main`은 보호돼 있다. 브랜치에서 작업하고 PR로 올린다(CI 통과 시 자동 머지). `.github/workflows/`와 `CODEOWNERS`를 바꾸는 PR은 팀원에게 리뷰 요청 알림이 간다(승인은 필요 없음).
 3. 커밋 메시지와 PR 제목 앞에 `[T번호]`. PR 본문에 `Refs Softbank-Hackathon-Finals/platform#이슈번호`, 마지막 PR이면 `Closes Softbank-Hackathon-Finals/platform#이슈번호`. 끝낸 할 일은 `platform` 이슈에서 체크한다.
 
 ## 앱이 지켜야 할 조건
