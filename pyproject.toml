@@ -1,0 +1,35 @@
+[project]
+name = "demo-chat"
+version = "0.1.0"
+description = "클라우드 출구전략 플랫폼의 이전 대상 데모 앱 (실시간 채팅)"
+requires-python = ">=3.12"
+dependencies = [
+    "boto3>=1.35",
+    "fastapi>=0.115",
+    "psycopg[binary]>=3.2",
+    "psycopg-pool>=3.2",
+    "python-multipart>=0.0.12",
+    "uvicorn[standard]>=0.32",
+]
+
+[dependency-groups]
+dev = [
+    "httpx>=0.27",
+    "pytest>=8",
+]
+
+[tool.uv]
+package = false
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
+# 줄 길이는 포매터가 맞춘다. 한국어 주석은 폭 계산이 길게 잡힌다.
+ignore = ["E501"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]

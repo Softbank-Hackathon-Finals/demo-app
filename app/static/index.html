@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>상담 채팅</title>
+<style>
+  :root { --bg: #f6f7f9; --fg: #1d2330; --muted: #6b7385; --line: #dde1e8; --me: #2f6fed; --warn: #b54708; --warn-bg: #fef0c7; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 15px/1.45 system-ui, sans-serif; background: var(--bg); color: var(--fg); display: flex; flex-direction: column; height: 100dvh; }
+  header { display: flex; gap: 8px; align-items: center; padding: 10px 16px; border-bottom: 1px solid var(--line); background: #fff; }
+  header h1 { font-size: 16px; margin: 0; flex: 1; }
+  .badge { font-size: 12px; padding: 2px 8px; border-radius: 999px; background: #e7ecf5; color: var(--muted); }
+  .badge.aws { background: #fff1e0; color: #a14a00; }
+  .badge.onprem { background: #e3f6ea; color: #13703a; }
+  #banner { display: none; padding: 8px 16px; background: var(--warn-bg); color: var(--warn); font-size: 13px; }
+  #log { flex: 1; overflow-y: auto; padding: 12px 16px; display: flex; flex-direction: column; gap: 8px; }
+  .msg { max-width: 80%; padding: 8px 10px; border-radius: 10px; background: #fff; border: 1px solid var(--line); word-break: break-word; }
+  .msg.mine { align-self: flex-end; border-color: transparent; background: var(--me); color: #fff; }
+  .msg .meta { font-size: 11px; opacity: .7; margin-bottom: 2px; }
+  .msg.pending { opacity: .55; }
+  .msg img { max-width: 220px; display: block; margin-top: 6px; border-radius: 6px; }
+  .msg a { color: inherit; }
+  form { display: flex; gap: 6px; padding: 10px 16px; border-top: 1px solid var(--line); background: #fff; }
+  input[type=text] { flex: 1; min-width: 0; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; font: inherit; }
+  #name { flex: 0 0 90px; }
+  button, label.file { padding: 8px 12px; border: 0; border-radius: 8px; background: var(--me); color: #fff; font: inherit; cursor: pointer; }
+  label.file { background: #e7ecf5; color: var(--fg); }
+  label.file input { display: none; }
+</style>
+</head>
+<body>
+<header>
+  <h1>상담 채팅</h1>
+  <span id="conn" class="badge">연결 중</span>
+  <span id="env" class="badge">-</span>
+</header>
+<div id="banner">전환 작업 중입니다. 보낸 메시지는 잠시 후 자동으로 전송됩니다.</div>
+<div id="log"></div>
+<form id="form">
+  <input id="name" type="text" placeholder="이름" maxlength="40" required>
+  <input id="body" type="text" placeholder="메시지" maxlength="2000" autocomplete="off">
+  <label class="file" title="첨부">📎<input id="file" type="file"></label>
+  <button>보내기</button>
+</form>
+<script>
+const $ = (id) => document.getElementById(id);
+const seen = new Set();
+let lastId = null;
+let retryDelay = 500;
+
+function uuid() {
+  if (crypto.randomUUID) return crypto.randomUUID();
+  // 비보안 컨텍스트(http 휴대폰 접속)용 대체 구현
+  const b = crypto.getRandomValues(new Uint8Array(16));
+  b[6] = (b[6] & 0x0f) | 0x40; b[8] = (b[8] & 0x3f) | 0x80;
+  const h = [...b].map((x) => x.toString(16).padStart(2, "0")).join("");
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
+}
+
+const store = { get: (k) => { try { return localStorage.getItem(k); } catch { return null; } },
+                set: (k, v) => { try { localStorage.setItem(k, v); } catch {} } };
+$("name").value = store.get("name") || "";
+
+function showStatus(s) {
+  const env = $("env");
+  env.textContent = s.env === "aws" ? "AWS" : s.env === "onprem" ? "온프렘" : s.env;
+  env.className = "badge " + s.env;
+  $("banner").style.display = s.write_blocked ? "block" : "none";
+}
+
+function render(m, pending) {
+  const el = document.createElement("div");
+  el.className = "msg" + (m.author === $("name").value ? " mine" : "") + (pending ? " pending" : "");
+  const meta = document.createElement("div");
+  meta.className = "meta";
+  meta.textContent = pending ? `${m.author} · 전송 중` : `${m.author} · ${new Date(m.created_at).toLocaleTimeString()}`;
+  el.append(meta);
+  if (m.body) el.append(document.createTextNode(m.body));
+  if (m.attachment_id) {
+    const url = `/api/attachments/${m.attachment_id}`;
+    if ((m.attachment_type || "").startsWith("image/")) {
+      const img = document.createElement("img");
+      img.src = url; img.alt = m.attachment_name || "";
+      el.append(img);
+    } else {
+      const a = document.createElement("a");
+      a.href = url; a.textContent = `📎 ${m.attachment_name || "첨부"}`;
+      el.append(document.createElement("br"), a);
+    }
+  }
+  return el;
+}
+
+function append(items) {
+  const log = $("log");
+  const stick = log.scrollHeight - log.scrollTop - log.clientHeight < 40;
+  for (const m of items) {
+    if (seen.has(m.id)) continue;
+    seen.add(m.id);
+    lastId = Math.max(lastId ?? 0, m.id);
+    log.append(render(m));
+  }
+  if (stick) log.scrollTop = log.scrollHeight;
+}
+
+// 끊기면 마지막 메시지 id로 다시 붙는다(컷오버 때 서버가 1012로 닫는다).
+function connect() {
+  const proto = location.protocol === "https:" ? "wss" : "ws";
+  const ws = new WebSocket(`${proto}://${location.host}/ws` + (lastId === null ? "" : `?after=${lastId}`));
+  ws.onopen = () => { retryDelay = 500; $("conn").textContent = "연결됨"; };
+  ws.onmessage = (e) => {
+    const data = JSON.parse(e.data);
+    if (data.type === "messages") append(data.items);
+    else showStatus(data);
+  };
+  ws.onclose = () => {
+    $("conn").textContent = "재연결 중";
+    setTimeout(connect, retryDelay);
+    retryDelay = Math.min(retryDelay * 2, 5000);
+  };
+}
+
+// 같은 멱등 키로 성공할 때까지 다시 보낸다. 503이면 Retry-After만큼 기다린다.
+async function sendUntilDone(makeRequest) {
+  for (let attempt = 0; ; attempt++) {
+    let wait = Math.min(500 * 2 ** attempt, 5000);
+    try {
+      const res = await makeRequest();
+      if (res.ok) return res.json();
+      if (res.status === 503) {
+        $("banner").style.display = "block";
+        wait = (Number(res.headers.get("Retry-After")) || 1) * 1000;
+      } else if (res.status < 500) {
+        throw new Error(`${res.status} ${await res.text()}`);
+      }
+    } catch (e) {
+      if (e instanceof Error && /^\d{3} /.test(e.message)) throw e;
+    }
+    await new Promise((r) => setTimeout(r, wait));
+  }
+}
+
+$("form").onsubmit = async (e) => {
+  e.preventDefault();
+  const author = $("name").value.trim();
+  const body = $("body").value;
+  const file = $("file").files[0];
+  if (!author || (!body.trim() && !file)) return;
+  store.set("name", author);
+  $("body").value = ""; $("file").value = "";
+
+  const pending = render({ author, body: body || (file && file.name) }, true);
+  $("log").append(pending);
+  try {
+    let attachmentId = null;
+    if (file) {
+      attachmentId = uuid();
+      await sendUntilDone(() => {
+        const fd = new FormData();
+        fd.append("file", file);
+        return fetch(`/api/attachments/${attachmentId}`, { method: "PUT", body: fd });
+      });
+    }
+    const message = { idempotency_key: uuid(), author, body, attachment_id: attachmentId };
+    await sendUntilDone(() => fetch("/api/messages", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(message),
+    }));
+  } catch (err) {
+    alert(`전송 실패: ${err.message}`);
+  } finally {
+    pending.remove();
+  }
+};
+
+fetch("/api/info").then((r) => r.json()).then(showStatus).catch(() => {});
+connect();
+</script>
+</body>
+</html>
