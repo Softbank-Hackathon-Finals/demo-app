@@ -23,13 +23,13 @@ from fastapi.concurrency import run_in_threadpool
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
-from psycopg import OperationalError
+from psycopg import AsyncConnection, OperationalError
 from psycopg.conninfo import make_conninfo
-from psycopg_pool import AsyncConnectionPool, PoolTimeout
+from psycopg_pool import AsyncConnectionPool
 from pydantic import BaseModel, Field, model_validator
 
 from app.config import Settings
-from app.db_secret import fetch_db_credentials
+from app.db_secret import DbCredentials, fetch_db_credentials
 from app.storage import AttachmentStorage
 from app.store import IdempotencyConflict, Store, UnknownAttachment
 
@@ -68,18 +68,43 @@ def create_app(
     async def lifespan(app: FastAPI):
         pool = None
         if app.state.store is None:
-            user, password = fetch_db_credentials(settings.db_secret_id)
+            credentials = DbCredentials(lambda: fetch_db_credentials(settings.db_secret_id))
+            await credentials.get()  # 시작 시 Secret을 못 읽으면 바로 실패한다
             conninfo = make_conninfo(
                 host=settings.db_host,
                 port=settings.db_port,
                 dbname=settings.db_name,
-                user=user,
-                password=password,
                 application_name=f"demo-chat-{settings.app_env}",
             )
-            # PgBouncer transaction 모드에서는 서버 쪽 prepared statement를 쓸 수 없다.
+
+            async def connection_kwargs() -> dict:
+                user, password = await credentials.get()
+                # PgBouncer transaction 모드에서는 서버 쪽 prepared statement를 쓸 수 없다.
+                return {"user": user, "password": password, "prepare_threshold": None}
+
+            class Connection(AsyncConnection):
+                @classmethod
+                async def connect(cls, conninfo: str = "", **kwargs):
+                    try:
+                        return await super().connect(conninfo, **kwargs)
+                    except OperationalError as e:
+                        # 접속 단계의 인증 실패는 sqlstate 없이 libpq · PgBouncer 메시지로만 온다.
+                        # 비밀번호가 회전됐다고 보고 Secret을 다시 읽어 한 번만 재시도한다.
+                        # 다른 접속 실패(DB 중단 등)에는 Secret을 다시 읽지 않는다.
+                        if "password authentication failed" not in str(e):
+                            raise
+                        credentials.invalidate()
+                        kwargs.update(await connection_kwargs())
+                        return await super().connect(conninfo, **kwargs)
+
             pool = AsyncConnectionPool(
-                conninfo, min_size=1, max_size=10, kwargs={"prepare_threshold": None}, open=False
+                conninfo,
+                connection_class=Connection,
+                kwargs=connection_kwargs,
+                min_size=1,
+                max_size=10,
+                timeout=settings.db_wait_seconds,
+                open=False,
             )
             await pool.open()
             app.state.store = Store(pool, settings.tx_timeout_ms)
@@ -117,15 +142,36 @@ def create_app(
     def status() -> dict:
         return {"env": settings.app_env, "write_blocked": app.state.write_blocked}
 
+    @app.exception_handler(OperationalError)
+    async def database_unavailable(request: Request, exc: OperationalError):
+        # 연결 실패, 풀 대기 초과, statement_timeout 취소 모두 "잠시 뒤 다시"다.
+        # 클라이언트는 같은 멱등 키로 재시도하므로 유실 · 중복이 없다.
+        log.warning("database unavailable on %s: %s", request.url.path, type(exc).__name__)
+        return JSONResponse(
+            {"detail": "database temporarily unavailable"},
+            status_code=503,
+            headers={"Retry-After": str(settings.retry_after)},
+        )
+
     @app.get("/healthz")
     async def healthz():
         return {"ok": True}
 
     @app.get("/readyz")
     async def readyz():
+        """트래픽을 받을 준비가 됐는지. DB는 보지 않는다.
+
+        컷오버 중 PgBouncer PAUSE로 DB가 멈춰도 파드를 서비스에서 빼지 않기 위해서다.
+        쓰기는 503 + Retry-After로, 읽기는 DB가 돌아오면 이어진다.
+        """
+        return {"ok": True}
+
+    @app.get("/api/health/db")
+    async def health_db():
+        """DB까지 닿는지. 모니터링 · 운영자 확인용이고 readiness probe로 쓰지 않는다."""
         try:
-            await app.state.store.ping()
-        except (OperationalError, PoolTimeout) as e:
+            await asyncio.wait_for(app.state.store.ping(), timeout=2)
+        except (OperationalError, TimeoutError) as e:
             raise HTTPException(503, "database unavailable") from e
         return {"ok": True}
 
@@ -210,7 +256,7 @@ def create_app(
             while not receiver.done():
                 try:
                     items = await app.state.store.list_messages(last_id, PAGE_SIZE)
-                except (OperationalError, PoolTimeout):
+                except OperationalError:
                     # 컷오버 중 DB가 잠시 멈추거나 바뀔 수 있다. 연결은 유지하고 다음 주기에 다시 조회한다.
                     log.warning("poll failed, retrying", exc_info=True)
                     items = None

@@ -37,6 +37,7 @@ open http://localhost:8082     # APP_ENV=onprem (같은 DB를 쓴다)
 | `ADMIN_TOKEN` | 쓰기 차단 API 토큰. 없으면 API가 꺼진다(404) |
 | `WRITE_BLOCKED` | 시작할 때 쓰기 차단 상태 (`true`/`false`) |
 | `POLL_INTERVAL` · `TX_TIMEOUT_MS` · `WRITE_BLOCK_RETRY_AFTER` | 전파 주기(1초) · 쓰기 트랜잭션 제한(200ms) · `Retry-After`(2초) |
+| `DB_WAIT_SECONDS` | 연결 풀에서 연결을 기다리는 최대 시간(5초). 넘으면 503 |
 
 ## API
 
@@ -46,7 +47,9 @@ open http://localhost:8082     # APP_ENV=onprem (같은 DB를 쓴다)
 | `PUT /api/attachments/{id}` | multipart `file`. 클라이언트가 만든 `id`가 멱등 키다 |
 | `GET /api/messages?after=<id>` · `GET /api/attachments/{id}` | 읽기. 쓰기 차단 중에도 된다 |
 | `WS /ws?after=<id>` | `hello` → `messages`(id 순) · `status`(쓰기 차단 변경). 마지막 id 이후를 DB에서 1초마다 조회한다. 서버 종료 시 1012로 닫는다 |
-| `GET /api/info` · `/healthz` · `/readyz` | 접속 환경 · 쓰기 차단 상태, 생존 · DB 준비 |
+| `GET /api/info` | 접속 환경 · 쓰기 차단 상태 |
+| `GET /healthz` · `/readyz` | 생존 · 준비. **DB를 보지 않는다** (아래 "운영") |
+| `GET /api/health/db` | DB까지 닿는지(2초 제한). 모니터링용, probe로 쓰지 않는다 |
 
 ### 쓰기 차단 스위치 (Cutover Executor가 호출)
 
@@ -60,3 +63,13 @@ curl -X PUT http://<pod>:8080/admin/write-block \
 - 켜면 새 업무 쓰기(`POST /api/messages` · `PUT /api/attachments`)를 **503 + `Retry-After`**로 거절하고, 읽기와 WebSocket은 유지한다.
 - 상태는 **프로세스마다** 따로 있다. 컷오버 중에는 DB가 멈추므로 DB에 두지 않는다. 그래서 Executor는 **모든 파드(진입점)**에 호출해야 한다. 파드가 새로 뜰 때는 `WRITE_BLOCKED`로 시작 상태를 정한다.
 - 클라이언트는 503을 받으면 `Retry-After`만큼 기다렸다가 **같은 멱등 키**로 다시 보낸다. 그래서 쓰기 정지 중에도 유실이나 중복이 없다.
+
+## 운영
+
+| 상황 | 앱 동작 | 확인 (로컬 compose) |
+|---|---|---|
+| DB 중단 · PgBouncer PAUSE · 풀 대기 초과 · `statement_timeout` | 모든 요청이 **503 + `Retry-After`**. 500을 내지 않는다. 클라이언트는 같은 멱등 키로 재시도 | DB를 멈추자 쓰기 503, 다시 켜고 1초 안에 201 |
+| 컷오버 중 DB 멈춤 | `/readyz`는 200을 유지해 파드가 서비스에서 빠지지 않는다. WebSocket도 유지된다 | DB 중단 중 `/readyz` 200, `/api/health/db` 503 |
+| DB 비밀번호 회전 | 새 연결이 인증에 실패하면 Secret을 다시 읽어 한 번 재시도한다(그 외에도 5분마다 갱신). 기존 연결은 그대로 쓴다. 재시작 불필요 | 회전 + 기존 연결 종료 후 첫 요청 503, 다음 재시도 201 |
+
+배포(T6 · T30) 시 probe는 `livenessProbe: /healthz`, `readinessProbe: /readyz`로 둔다. DB를 보는 `/api/health/db`를 readiness로 쓰면 컷오버 순간 모든 파드가 빠져 트래픽이 끊긴다.
