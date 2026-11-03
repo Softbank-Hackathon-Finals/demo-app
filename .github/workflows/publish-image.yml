@@ -53,6 +53,7 @@ jobs:
             org.opencontainers.image.revision=${{ env.SOURCE_SHA }}
           tags: ${{ env.IMAGE }}:sha-${{ env.SOURCE_SHA }}
       - name: Scan the artifact before publishing
+        id: scan
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           scan-type: image
@@ -64,6 +65,21 @@ jobs:
           format: json
           output: ${{ runner.temp }}/trivy.json
           timeout: 10m
+      - name: Explain failed scan without exposing secret matches
+        if: ${{ !cancelled() && steps.scan.outcome == 'failure' }}
+        run: |
+          python3 - <<'PY'
+          import json, os, pathlib
+          report = pathlib.Path(os.environ['RUNNER_TEMP']) / 'trivy.json'
+          if not report.is_file():
+              print('scan_report_available=false')
+          else:
+              results = json.loads(report.read_text()).get('Results', [])
+              findings = [{key: item.get(key) for key in ('VulnerabilityID', 'PkgName', 'InstalledVersion', 'FixedVersion', 'Severity')}
+                          for result in results for item in result.get('Vulnerabilities', [])]
+              print(json.dumps({'vulnerabilities': findings,
+                                'secret_match_count': sum(len(result.get('Secrets', [])) for result in results)}, sort_keys=True))
+          PY
       - name: Install registry copy tool
         run: |
           sudo apt-get update -qq
