@@ -1,0 +1,117 @@
+name: publish-image
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_sha:
+        description: Reviewed full commit SHA already on main
+        required: true
+        type: string
+  # Bootstrap this workflow before it exists on main; this branch publishes only
+  # the reviewed source SHA below. Remove the bootstrap trigger after adoption.
+  push:
+    branches: [feature/T7-ghcr-publish]
+    paths: [.github/workflows/publish-image.yml, scripts/prepare_image_source.py]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: demo-chat-image-publish
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      contents: read
+      packages: write
+    env:
+      IMAGE: ghcr.io/softbank-hackathon-finals/demo-chat
+      SOURCE_SHA: ${{ inputs.source_sha || '4a24a1f798c31dafd8f35866aa42ffc5878648cd' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Prepare tracked source only
+        run: |
+          python3 scripts/prepare_image_source.py "$SOURCE_SHA" "$RUNNER_TEMP/image-source" "$RUNNER_TEMP/source-manifest.json"
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - name: Build one OCI artifact with provenance and SBOM
+        id: build
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: ${{ runner.temp }}/image-source
+          platforms: linux/amd64
+          outputs: type=oci,dest=${{ runner.temp }}/image.tar
+          provenance: mode=max
+          sbom: true
+          labels: |
+            org.opencontainers.image.source=https://github.com/Softbank-Hackathon-Finals/demo-chat
+            org.opencontainers.image.revision=${{ env.SOURCE_SHA }}
+          tags: ${{ env.IMAGE }}:sha-${{ env.SOURCE_SHA }}
+      - name: Scan the artifact before publishing
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: image
+          input: ${{ runner.temp }}/image.tar
+          scanners: vuln,secret
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: '1'
+          format: json
+          output: ${{ runner.temp }}/trivy.json
+          timeout: 10m
+      - name: Install registry copy tool
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq skopeo
+      - name: Authenticate with this job's temporary token
+        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Publish scanned bytes and pull by immutable digest
+        env:
+          BUILD_DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          set -euo pipefail
+          authfile="${DOCKER_CONFIG:-$HOME/.docker}/config.json"
+          skopeo copy --all --preserve-digests --dest-authfile "$authfile" \
+            --digestfile "$RUNNER_TEMP/pushed-digest.txt" \
+            "oci-archive:$RUNNER_TEMP/image.tar" "docker://$IMAGE:sha-$SOURCE_SHA"
+          digest=$(cat "$RUNNER_TEMP/pushed-digest.txt")
+          test "$digest" = "$BUILD_DIGEST"
+          docker pull --platform linux/amd64 "$IMAGE@$digest"
+          docker image inspect "$IMAGE@$digest" > "$RUNNER_TEMP/pulled-image.json"
+          docker buildx imagetools inspect "$IMAGE@$digest" --raw > "$RUNNER_TEMP/registry-index.json"
+          SOURCE_SHA="$SOURCE_SHA" IMAGE="$IMAGE" DIGEST="$digest" python3 - <<'PY'
+          import json, os, pathlib
+          root = pathlib.Path(os.environ['RUNNER_TEMP'])
+          image = json.loads((root / 'pulled-image.json').read_text())[0]
+          assert image['Config']['User'] == '10001'
+          assert image['Config']['Labels']['org.opencontainers.image.revision'] == os.environ['SOURCE_SHA']
+          assert os.environ['IMAGE'] + '@' + os.environ['DIGEST'] in image['RepoDigests']
+          index = json.loads((root / 'registry-index.json').read_text())
+          assert any(m.get('annotations', {}).get('vnd.docker.reference.type') == 'attestation-manifest' for m in index['manifests'])
+          result = {'source_sha': os.environ['SOURCE_SHA'], 'image': os.environ['IMAGE'], 'digest': os.environ['DIGEST'],
+                    'platform': 'linux/amd64', 'scanned_before_publish': True, 'registry_pull_verified': True,
+                    'runtime_user': '10001', 'attestation_manifest_present': True,
+                    'cluster_pull_verified': False, 'anonymous_pull_verified': False}
+          (root / 'image-receipt.json').write_text(json.dumps(result, indent=2) + '\n')
+          print(json.dumps(result, sort_keys=True))
+          PY
+      - name: Save bounded publication evidence
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: image-publication-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/source-manifest.json
+            ${{ runner.temp }}/image-receipt.json
+            ${{ runner.temp }}/registry-index.json
+            ${{ runner.temp }}/trivy.json
+          if-no-files-found: error
+          retention-days: 14
