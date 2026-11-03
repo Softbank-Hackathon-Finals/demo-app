@@ -1,7 +1,7 @@
 {
-  "source_sha": "ce5727eb3e3d2355077afdaadcb1a722aba9c7cd",
+  "source_sha": "1a57a5410a1d1a88d1884201407bcff8019e868d",
   "image": "ghcr.io/softbank-hackathon-finals/demo-chat",
-  "digest": "sha256:001adc35a9fc767566552fb55c3c19a67b7c5efc7231fb02dc28cdeace99d0d4",
+  "digest": "sha256:edad76a75a604ccb0199e3e0a1c6ba8b0b1e9e4822fbca7857b33bd75a59751c",
   "platform": "linux/amd64",
   "scanned_before_publish": true,
   "registry_pull_verified": true,

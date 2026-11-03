@@ -47,7 +47,7 @@ test "$(cat "$destination/downloaded-digest.txt")" = "$digest"
 
 [게시 실행 41606831578](https://github.com/Softbank-Hackathon-Finals/demo-chat/actions/runs/41606831578)은
 main 소스 `ce5727eb3e3d2355077afdaadcb1a722aba9c7cd`로 성공했다. 식별값과
-검사 결과는 `docs/evidence/image-publication-2026-11-03/`에 있다.
+검사 결과는 `docs/evidence/image-publication-2026-11-03/previous-ce5727eb/`에 보존돼 있다.
 GitHub UI에서 이번 실행의 index와 두 하위 manifest, 연결된 source repository를
 대조했다. 기존의 다른 버전은 관찰되지 않았다.
 
@@ -68,3 +68,12 @@ actionlint .github/workflows/publish-image.yml
 ```
 
 추적 파일로만 만든 컨텍스트인지, main 밖의 커밋·추적된 환경 파일을 거부하는지 검사한다. 실제 게시·취약점·registry pull 결과는 해당 Actions 실행의 영수증으로 확인한다.
+
+## WebSocket 1012 지원 이미지 갱신
+
+[PR #10](https://github.com/Softbank-Hackathon-Finals/demo-chat/pull/10)의 main 병합
+`1a57a5410a1d1a88d1884201407bcff8019e868d`를 고정해
+[게시 실행 41656345415](https://github.com/Softbank-Hackathon-Finals/demo-chat/actions/runs/41656345415)을 완료했다.
+현재 전송 입력은 `docs/evidence/image-publication-2026-11-03/`의 새 영수증이며,
+이전 게시 기록은 `previous-ce5727eb/`에 그대로 보존했다. 검토된 증빙 갱신 뒤
+기존 전송 워크플로로 같은 digest를 ECR에 복사한다. 실제 앱 rollout은 별도 소유자의 작업이다.

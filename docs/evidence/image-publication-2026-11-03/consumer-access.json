@@ -1,25 +1,14 @@
 {
   "observed_date": "2026-11-03",
-  "package_url": "https://github.com/orgs/Softbank-Hackathon-Finals/packages/container/package/demo-chat",
-  "owner": "Softbank-Hackathon-Finals",
-  "source_repository": "Softbank-Hackathon-Finals/demo-chat",
-  "inventory_evidence": "Coordinating operator inspected GitHub package UI and matched all three versions against this publication index.",
-  "tagged_version_count": 1,
-  "untagged_version_count": 2,
-  "version_digests": [
-    "sha256:001adc35a9fc767566552fb55c3c19a67b7c5efc7231fb02dc28cdeace99d0d4",
-    "sha256:bd1cd57a1c3dda9bb2795696167e242fc3b79a80eefb40d068a4124bcc66f384",
-    "sha256:6737245c4111e66db55616e77832bef4d678016f5856bb34ed2a18bbed2af4f2"
-  ],
-  "unknown_older_versions_observed": false,
-  "visibility": "private",
-  "public_visibility_control_enabled": false,
-  "blocking_setting": "GitHub UI reports that organization administrators disabled public and internal visibility changes.",
-  "anonymous_manifest_readable": false,
+  "source_sha": "1a57a5410a1d1a88d1884201407bcff8019e868d",
+  "publication_run": "https://github.com/Softbank-Hackathon-Finals/demo-chat/actions/runs/41656345415",
+  "authenticated_registry_pull_verified": true,
+  "runtime_packaging_probe_verified": true,
   "anonymous_pull_verified": false,
-  "rke2_image_pull_attempted": false,
-  "rke2_image_pull_verified": false,
+  "cluster_pull_verified": false,
+  "private_ecr_transfer_verified": false,
   "organization_policy_change_performed": false,
   "long_lived_pull_credentials_created": false,
-  "next_action": "Decide the organization publication policy, then verify anonymous download and the exact digest on RKE2/EKS."
+  "next_action": "Merge this publication record through the required checks, then run the existing main-only private transfer for this exact source and digest.",
+  "prior_visibility_observation": "previous-ce5727eb/consumer-access.json"
 }

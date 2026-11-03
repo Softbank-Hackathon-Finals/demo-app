@@ -20,7 +20,7 @@ repository Actions secrets so public logs mask them:
 - `PRIVATE_IMAGE_REPOSITORY_URI`: the exact private ECR `bravo/demo-chat` URI.
 
 Run the workflow from `main` with `source_sha` and `source_digest` matching
-the reviewed publication record. This first transfer is bound to the committed
+the reviewed publication record. The transfer is bound to the committed
 `docs/evidence/image-publication-2026-11-03/` receipt, scan summary and registry
 index from main. Future publications need a reviewed record update; arbitrary
 input images or unrecorded digests are rejected.
