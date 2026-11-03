@@ -17,7 +17,9 @@ BuildKit의 max provenance와 SBOM을 OCI attestation으로 함께 게시한다.
 
 ## 최초 게시와 소비자 접근
 
-default branch에 workflow가 없던 최초 확인을 위해 `feature/T7-ghcr-publish`의 지정 파일 push도 실행하며, 이 경로는 검토된 최초 소스 SHA로 고정되어 있다. main 채택 뒤에는 이 임시 push trigger를 제거하고 명시적인 SHA 입력 실행을 사용한다. PR 필수 CI나 보호 규칙은 변경하지 않는다.
+최초 확인은 검토된 소스 SHA로 고정한 임시 브랜치 push 경로로 수행했다.
+성공 증거를 확보한 뒤 이 임시 trigger와 기본 SHA를 제거했다. 이후에는
+명시적인 SHA 입력 실행만 사용한다. PR 필수 CI나 보호 규칙은 변경하지 않는다.
 
 GHCR package의 최초 기본 가시성은 별도 확인한다. runner의 인증된 pull 성공은 익명 pull이나 EKS/RKE2 pull 성공을 뜻하지 않는다. 공개 데모 소스에 맞춰 package를 public으로 둘지는 소유자가 설정하고, 익명 pull과 실제 소비 클러스터의 동일 digest pull을 각각 기록한다. package가 private인 동안 장기 PAT를 공용 imagePullSecret으로 복제해 해결하지 않는다.
 

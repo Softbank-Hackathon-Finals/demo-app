@@ -7,11 +7,6 @@ on:
         description: Reviewed full commit SHA already on main
         required: true
         type: string
-  # Bootstrap this workflow before it exists on main; this branch publishes only
-  # the reviewed source SHA below. Remove the bootstrap trigger after adoption.
-  push:
-    branches: [feature/T7-ghcr-publish]
-    paths: [.github/workflows/publish-image.yml, scripts/prepare_image_source.py]
 
 permissions:
   contents: read
@@ -29,7 +24,7 @@ jobs:
       packages: write
     env:
       IMAGE: ghcr.io/softbank-hackathon-finals/demo-chat
-      SOURCE_SHA: ${{ inputs.source_sha || 'ce5727eb3e3d2355077afdaadcb1a722aba9c7cd' }}
+      SOURCE_SHA: ${{ inputs.source_sha }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
