@@ -5,3 +5,6 @@
 .pytest_cache
 .ruff_cache
 tests
+node_modules
+test-results
+playwright-report

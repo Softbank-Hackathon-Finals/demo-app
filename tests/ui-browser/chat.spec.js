@@ -1,0 +1,120 @@
+import { test, expect } from '@playwright/test';
+import { randomUUID } from 'node:crypto';
+import jsQR from 'jsqr';
+
+const admin = { Authorization: 'Bearer browser-test-only' };
+const message = (body) => ({ author: '다른 참여자', body, idempotency_key: randomUUID() });
+test.beforeEach(async ({ page, request }) => {
+  await request.post('/__test__/reset');
+  await page.goto('/');
+  await expect(page.locator('#conn')).toHaveText('연결됨');
+  await page.locator('#name').fill('방문자 07');
+});
+
+test('real HTTP writes and shared WebSocket reads survive a test route switch', async ({ page, request }) => {
+  await page.locator('#body').fill('이전 전 메시지'); await page.locator('#send').click();
+  await expect(page.locator('#log .msg')).toHaveCount(1);
+  await expect(page.locator('#outbox')).toBeHidden();
+  await request.post('/__test__/switch/onprem');
+  await expect(page.locator('#env')).toHaveText('온프렘');
+  await expect(page.locator('#conn')).toHaveText('연결됨');
+  await request.post('/api/messages', { data: message('목적지에서 보낸 메시지') });
+  await expect(page.locator('#log .msg')).toHaveCount(2);
+  await expect(page.locator('#log')).toContainText('이전 전 메시지');
+  await page.locator('#body').fill('이전 후 메시지'); await page.locator('#send').click();
+  await expect(page.locator('#log .msg')).toHaveCount(3);
+});
+
+test('write pause retains the same request until acknowledged exactly once', async ({ page, request }) => {
+  await request.put('/admin/write-block', { headers: admin, data: { blocked: true } });
+  await expect(page.locator('#banner')).toContainText('쓰기가 잠시 제한');
+  const bodies = [];
+  page.on('request', (req) => { if (req.url().endsWith('/api/messages') && req.method() === 'POST') bodies.push(req.postData()); });
+  await page.locator('#body').fill('대기 후 한 번만 저장'); await page.locator('#send').click();
+  await expect(page.locator('#outbox')).toContainText('같은 요청으로 재시도');
+  await request.put('/admin/write-block', { headers: admin, data: { blocked: false } });
+  await expect(page.locator('#outbox')).toBeHidden({ timeout: 8000 });
+  await expect(page.locator('#log .msg')).toHaveCount(1);
+  expect(bodies.length).toBeGreaterThanOrEqual(2); expect(new Set(bodies).size).toBe(1);
+  expect((await (await request.get('/api/messages')).json()).length).toBe(1);
+});
+
+test('lost POST response retries the original key without duplicate storage', async ({ page, request }) => {
+  let first = true; const bodies = [];
+  await page.route('**/api/messages', async (route) => {
+    if (route.request().method() !== 'POST') return route.continue();
+    bodies.push(route.request().postData());
+    if (first) { first = false; await route.fetch(); await route.abort('failed'); }
+    else await route.continue();
+  });
+  await page.locator('#body').fill('응답만 유실된 메시지'); await page.locator('#send').click();
+  await expect(page.locator('#outbox')).toBeHidden({ timeout: 8000 });
+  await expect(page.locator('#log .msg')).toHaveCount(1);
+  expect(new Set(bodies).size).toBe(1); expect(bodies.length).toBeGreaterThanOrEqual(2);
+  expect((await (await request.get('/api/messages')).json()).length).toBe(1);
+});
+
+test('lost upload acknowledgement keeps one attachment id and then sends the message', async ({ page, request }) => {
+  let first = true; const addresses = [];
+  await page.route('**/api/attachments/*', async (route) => {
+    if (route.request().method() !== 'PUT') return route.continue();
+    addresses.push(route.request().url());
+    if (first) { first = false; await route.fetch(); await route.abort('failed'); }
+    else await route.continue();
+  });
+  await page.locator('#file').setInputFiles({ name: 'sample.txt', mimeType: 'text/plain', buffer: Buffer.from('synthetic attachment') });
+  await page.locator('#body').fill('첨부 응답 재확인'); await page.locator('#send').click();
+  await expect(page.locator('#outbox')).toBeHidden({ timeout: 8000 });
+  await expect(page.locator('#log .msg')).toHaveCount(1);
+  expect(addresses.length).toBeGreaterThanOrEqual(2); expect(new Set(addresses).size).toBe(1);
+  const rows = await (await request.get('/api/messages')).json();
+  expect(rows.length).toBe(1);
+  expect(new URL(addresses[0]).pathname).toBe(`/api/attachments/${rows[0].attachment_id}`);
+  const attachment = await request.get(`/api/attachments/${rows[0].attachment_id}`);
+  expect(attachment.ok()).toBe(true); expect(await attachment.text()).toBe('synthetic attachment');
+  await expect(page.locator('#log a')).toHaveText('첨부 · sample.txt');
+});
+
+test('reconnect asks after the last streamed id and retrieves messages sent while offline', async ({ page, context, request }) => {
+  await request.post('/api/messages', { data: message('온라인 메시지') });
+  await expect(page.locator('#log .msg')).toHaveCount(1);
+  const addresses = []; page.on('websocket', (ws) => addresses.push(ws.url()));
+  await context.setOffline(true);
+  await expect(page.locator('#conn')).not.toHaveText('연결됨');
+  await request.post('/api/messages', { data: message('오프라인 동안의 메시지') });
+  await context.setOffline(false);
+  await expect(page.locator('#log .msg')).toHaveCount(2);
+  expect(addresses.some((url) => new URL(url).searchParams.get('after') === '1')).toBe(true);
+});
+
+test('mobile layout, local preview and sharing omit query tokens', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/?token=do-not-share#private');
+  await expect(page.locator('#send')).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.locator('#file').setInputFiles({ name: 'sample.png', mimeType: 'image/png', buffer: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jWZkAAAAASUVORK5CYII=', 'base64') });
+  await expect(page.locator('#file-preview img')).toBeVisible();
+  await page.locator('#file-preview button').click();
+  await expect(page.locator('#file-preview')).toBeHidden();
+  await page.locator('#share-mobile').click();
+  await expect(page.locator('#share-url')).toHaveValue('http://127.0.0.1:18922/');
+  await expect(page.locator('#qr')).toBeVisible();
+  const pixels = await page.locator('#qr').evaluate((canvas) => ({
+    width: canvas.width, height: canvas.height,
+    data: [...canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height).data],
+  }));
+  expect(jsQR(Uint8ClampedArray.from(pixels.data), pixels.width, pixels.height)?.data).toBe('http://127.0.0.1:18922/');
+  await expect(page.locator('#share-note')).toContainText('현재 PC 전용');
+});
+
+test('message markup is text, and a rejected send stays visible for correction', async ({ page, request }) => {
+  await request.post('/api/messages', { data: message('<img src=x onerror="window.injected=true">') });
+  await expect(page.locator('#log')).toContainText('<img src=x');
+  expect(await page.evaluate(() => window.injected)).toBeUndefined();
+  await expect(page.locator('#log img')).toHaveCount(0);
+  await page.route('**/api/messages', (route) => route.fulfill({ status: 409, json: { detail: 'conflict' } }));
+  await page.locator('#body').fill('남아 있어야 하는 메시지'); await page.locator('#send').click();
+  await expect(page.locator('#outbox')).toContainText('내용 충돌');
+  await expect(page.locator('#outbox')).toContainText('남아 있어야 하는 메시지');
+  await expect(page.getByRole('button', { name: '같은 요청 재시도' })).toBeHidden();
+});

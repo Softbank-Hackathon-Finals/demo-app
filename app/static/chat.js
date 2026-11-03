@@ -1,0 +1,212 @@
+import { qrcode } from './vendor/qrcode.mjs';
+import { MessageCursor, deliver, validateMessage, shareAddress } from './transport.js';
+
+const $ = (id) => document.getElementById(id);
+const cursor = new MessageCursor();
+const rendered = new Map();
+const pending = new Set();
+const rasterTypes = new Set(['image/png', 'image/jpeg', 'image/gif', 'image/webp']);
+let renderedFloor = 0, socket, reconnectTimer, handshakeTimer, reconnectAttempt = 0;
+let connected = false, blocked = false, previewUrl, stopping = false;
+
+function uuid() {
+  if (crypto.randomUUID) return crypto.randomUUID();
+  const b = crypto.getRandomValues(new Uint8Array(16));
+  b[6] = (b[6] & 15) | 64; b[8] = (b[8] & 63) | 128;
+  const h = [...b].map((n) => n.toString(16).padStart(2, '0')).join('');
+  return `${h.slice(0,8)}-${h.slice(8,12)}-${h.slice(12,16)}-${h.slice(16,20)}-${h.slice(20)}`;
+}
+
+try { $('name').value = sessionStorage.getItem('bravo-alias') || ''; } catch { /* Private browsing. */ }
+
+function connectionState(online) {
+  connected = online;
+  $('conn').textContent = online ? '연결됨' : navigator.onLine ? '재연결 중' : '오프라인';
+  $('conn').className = `connection${online ? ' online' : ''}`;
+  $('environment-note').textContent = online ? '연결된 서버가 알려 준 실행 환경입니다.' : '마지막으로 확인한 환경입니다.';
+  notice();
+}
+
+function notice() {
+  const text = !connected ? '연결을 다시 확인하고 있습니다. 대기 중인 메시지는 이 탭에 남아 있습니다.' :
+    blocked ? '현재 연결된 앱의 쓰기가 잠시 제한되었습니다. 같은 요청으로 재전송합니다.' : '';
+  $('banner').textContent = text; $('banner').hidden = !text;
+}
+
+function status(data) {
+  if (typeof data.env !== 'string' || typeof data.write_blocked !== 'boolean') throw new Error('invalid_status');
+  $('env').textContent = ({ aws: 'AWS', onprem: '온프렘', local: '로컬' })[data.env] || '미확인 환경';
+  blocked = data.write_blocked; notice();
+}
+
+function messageElement(m) {
+  const el = document.createElement('article'); el.className = `msg${m.author === $('name').value.trim() ? ' mine' : ''}`;
+  el.dataset.messageId = String(m.id);
+  const meta = document.createElement('div'); meta.className = 'meta';
+  meta.textContent = `${m.author} · ${new Date(m.created_at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })} · #${m.id}`;
+  const bubble = document.createElement('div'); bubble.className = 'bubble'; bubble.textContent = m.body;
+  if (m.attachment_id) {
+    const url = `/api/attachments/${encodeURIComponent(m.attachment_id)}`;
+    const filename = typeof m.attachment_name === 'string' ? m.attachment_name.slice(0, 200) : '첨부파일';
+    if (rasterTypes.has(m.attachment_type)) {
+      const image = document.createElement('img'); image.src = url; image.alt = filename; image.loading = 'lazy'; bubble.append(image);
+    }
+    const link = document.createElement('a'); link.href = url; link.textContent = `첨부 · ${filename}`;
+    link.target = '_blank'; link.rel = 'noopener noreferrer'; bubble.append(link);
+  }
+  el.append(meta, bubble); return el;
+}
+
+function append(items) {
+  const log = $('log'); const stick = log.scrollHeight - log.scrollTop - log.clientHeight < 70;
+  for (const m of items) {
+    validateMessage(m);
+    if (rendered.has(m.id) || m.id <= renderedFloor) continue;
+    $('empty').hidden = true;
+    const el = messageElement(m);
+    const next = [...rendered.keys()].filter((id) => id > m.id).sort((a,b) => a-b)[0];
+    log.insertBefore(el, next ? rendered.get(next) : null); rendered.set(m.id, el);
+    if (rendered.size > 500) {
+      const oldest = Math.min(...rendered.keys()); rendered.get(oldest).remove(); rendered.delete(oldest); renderedFloor = oldest;
+    }
+  }
+  if (stick) log.scrollTop = log.scrollHeight;
+  else if (items.length) $('jump').hidden = false;
+}
+$('jump').onclick = () => { $('log').scrollTop = $('log').scrollHeight; $('jump').hidden = true; };
+$('log').onscroll = () => {
+  if ($('log').scrollHeight - $('log').scrollTop - $('log').clientHeight < 70) $('jump').hidden = true;
+};
+
+function connect() {
+  if (stopping) return;
+  clearTimeout(reconnectTimer); clearTimeout(handshakeTimer);
+  connectionState(false);
+  if (!navigator.onLine) { connectionState(false); return; }
+  const previous = socket;
+  socket = null; previous?.close();
+  const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const ws = new WebSocket(`${proto}//${location.host}/ws${cursor.value === null ? '' : `?after=${cursor.value}`}`);
+  socket = ws;
+  handshakeTimer = setTimeout(() => { if (socket === ws) ws.close(); }, 10000);
+  ws.onmessage = (event) => {
+    if (socket !== ws) return;
+    try {
+      if (typeof event.data !== 'string' || event.data.length > 2 * 1024 * 1024) throw new Error('invalid_frame');
+      const data = JSON.parse(event.data);
+      if (data.type === 'hello') {
+        status(data); clearTimeout(handshakeTimer); reconnectAttempt = 0; connectionState(true);
+      } else if (data.type === 'status') status(data);
+      else if (data.type === 'messages') append(cursor.accept(data.items));
+      else throw new Error('unknown_frame');
+    } catch {
+      $('feedback').textContent = '응답을 확인할 수 없어 다시 연결합니다.'; ws.close();
+    }
+  };
+  ws.onerror = () => ws.close();
+  ws.onclose = () => {
+    if (socket !== ws || stopping) return;
+    clearTimeout(handshakeTimer); connectionState(false);
+    reconnectTimer = setTimeout(connect, Math.min(500 * 2 ** Math.min(reconnectAttempt++, 4), 5000) + Math.random() * 200);
+  };
+}
+window.addEventListener('offline', () => { connectionState(false); socket?.close(); });
+window.addEventListener('online', connect);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) connect(); });
+
+function clearPreview() {
+  if (previewUrl) URL.revokeObjectURL(previewUrl);
+  previewUrl = null; $('file-preview').replaceChildren(); $('file-preview').hidden = true;
+}
+$('file').onchange = () => {
+  clearPreview(); const file = $('file').files[0];
+  if (!file) return;
+  if (file.size > 10 * 1024 * 1024) { $('file').value = ''; $('feedback').textContent = '첨부파일은 10 MB 이하로 선택해 주세요.'; return; }
+  if (rasterTypes.has(file.type)) {
+    const image = document.createElement('img'); previewUrl = URL.createObjectURL(file); image.src = previewUrl; image.alt = '전송 전 첨부 미리보기'; $('file-preview').append(image);
+  }
+  const label = document.createElement('span'); label.textContent = `${file.name} · ${Math.max(1, Math.ceil(file.size / 1024))} KB`;
+  const remove = document.createElement('button'); remove.type = 'button'; remove.textContent = '제거'; remove.onclick = () => { $('file').value = ''; clearPreview(); };
+  $('file-preview').append(label, remove); $('file-preview').hidden = false;
+};
+$('body').oninput = () => { $('counter').textContent = `${$('body').value.length.toLocaleString()} / 2,000`; };
+
+function updateOutbox() { $('outbox').hidden = pending.size === 0; $('send').disabled = pending.size >= 10; }
+
+async function send(entry) {
+  if (entry.running) return;
+  entry.running = true; entry.retry.hidden = true; entry.dismiss.hidden = true; entry.pause.hidden = false;
+  entry.controller = new AbortController(); entry.state.textContent = '전송 확인 중';
+  const options = { signal: entry.controller.signal, onWait: () => { entry.state.textContent = '응답 대기 · 같은 요청으로 재시도 중'; } };
+  try {
+    if (entry.file && !entry.uploaded) {
+      await deliver((signal) => {
+        const form = new FormData(); form.append('file', entry.file);
+        return fetch(`/api/attachments/${entry.message.attachment_id}`, { method: 'PUT', body: form, signal });
+      }, { ...options, validate: (value) => {
+        if (value?.id !== entry.message.attachment_id) throw new Error('invalid_attachment_ack');
+        return value;
+      } });
+      entry.uploaded = true;
+    }
+    const saved = await deliver((signal) => fetch('/api/messages', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(entry.message), signal,
+    }), { ...options, validate: (value) => {
+      validateMessage(value);
+      if (value.author !== entry.message.author || value.body !== entry.message.body ||
+          (value.attachment_id ?? null) !== entry.message.attachment_id) throw new Error('invalid_message_ack');
+      return value;
+    } });
+    // Do not advance the resume cursor here: other participants' messages may be in flight.
+    append([saved]); pending.delete(entry); entry.el.remove();
+    $('feedback').textContent = `메시지 #${saved.id} 저장을 확인했습니다.`;
+  } catch (error) {
+    const permanent = ['conflict', 'rejected', 'too_large'].includes(error.code);
+    entry.state.textContent = ({ conflict: '내용 충돌 · 새 메시지로 작성해 주세요', rejected: '요청 거부 · 입력을 확인해 주세요', too_large: '첨부 용량 초과', paused: '재시도 일시 정지 · 저장 여부 미확인' })[error.code] || '자동 재시도 종료 · 저장 여부 미확인';
+    entry.retry.hidden = permanent; entry.pause.hidden = true; entry.dismiss.hidden = false;
+  } finally { entry.running = false; updateOutbox(); }
+}
+
+$('form').onsubmit = (event) => {
+  event.preventDefault(); if (pending.size >= 10) return;
+  const author = $('name').value.trim(), body = $('body').value, file = $('file').files[0];
+  if (!author || (!body.trim() && !file)) { $('feedback').textContent = '별명과 메시지 또는 첨부파일을 입력해 주세요.'; return; }
+  try { sessionStorage.setItem('bravo-alias', author); } catch { /* No message contents are persisted. */ }
+  const entry = { message: Object.freeze({ idempotency_key: uuid(), author, body, attachment_id: file ? uuid() : null }), file, uploaded: false, running: false };
+  entry.el = document.createElement('div'); entry.el.className = 'pending-item';
+  const details = document.createElement('div'), summary = document.createElement('p');
+  summary.textContent = body || file.name; entry.state = document.createElement('small'); details.append(summary, entry.state);
+  entry.retry = document.createElement('button'); entry.retry.type = 'button'; entry.retry.textContent = '같은 요청 재시도'; entry.retry.hidden = true; entry.retry.onclick = () => send(entry);
+  entry.pause = document.createElement('button'); entry.pause.type = 'button'; entry.pause.textContent = '재시도 정지'; entry.pause.onclick = () => entry.controller?.abort();
+  entry.dismiss = document.createElement('button'); entry.dismiss.type = 'button'; entry.dismiss.textContent = '목록에서 숨기기'; entry.dismiss.hidden = true;
+  entry.dismiss.onclick = () => {
+    if (entry.running || !window.confirm('대기 목록에서만 숨깁니다. 이미 저장된 메시지나 첨부는 취소·삭제되지 않습니다.')) return;
+    pending.delete(entry); entry.el.remove(); updateOutbox();
+  };
+  entry.el.append(details, entry.retry, entry.pause, entry.dismiss); $('outbox').append(entry.el); pending.add(entry);
+  $('body').value = ''; $('file').value = ''; $('counter').textContent = '0 / 2,000'; $('feedback').textContent = ''; clearPreview(); updateOutbox(); send(entry);
+};
+
+function showShare() {
+  const address = shareAddress(location); $('share-url').value = address;
+  try {
+    const code = qrcode(0, 'M'); code.addData(address); code.make();
+    const count = code.getModuleCount(), scale = Math.max(1, Math.floor(256 / (count + 8)));
+    const canvas = $('qr'); canvas.width = canvas.height = (count + 8) * scale;
+    const ctx = canvas.getContext('2d'); ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, canvas.width, canvas.height); ctx.fillStyle = '#172c34';
+    for (let y = 0; y < count; y++) for (let x = 0; x < count; x++) if (code.isDark(y, x)) ctx.fillRect((x + 4) * scale, (y + 4) * scale, scale, scale);
+    canvas.hidden = false;
+    $('share-note').textContent = ['localhost', '127.0.0.1', '[::1]'].includes(location.hostname) ? '이 주소는 현재 PC 전용입니다. 휴대폰 참여에는 접근 가능한 서버 주소가 필요합니다.' : '참여자가 이 서버 주소에 접근할 수 있어야 합니다. QR은 이 브라우저에서 생성합니다.';
+  } catch { $('qr').hidden = true; $('share-note').textContent = 'QR 생성이 어려우면 아래 주소를 복사해 주세요.'; }
+  $('share-dialog').showModal();
+}
+$('share').onclick = $('share-mobile').onclick = showShare;
+$('close-share').onclick = () => $('share-dialog').close();
+$('copy-link').onclick = async () => {
+  try { await navigator.clipboard.writeText($('share-url').value); $('share-note').textContent = '주소를 복사했습니다.'; }
+  catch { $('share-url').select(); $('share-note').textContent = '주소를 선택했습니다. 직접 복사해 주세요.'; }
+};
+window.addEventListener('beforeunload', (event) => { if (pending.size) { event.preventDefault(); event.returnValue = ''; } });
+window.addEventListener('pagehide', () => { stopping = true; clearTimeout(reconnectTimer); clearTimeout(handshakeTimer); socket?.close(); for (const entry of pending) entry.controller?.abort(); clearPreview(); });
+window.addEventListener('pageshow', (event) => { if (event.persisted) { stopping = false; connect(); } });
+connect();

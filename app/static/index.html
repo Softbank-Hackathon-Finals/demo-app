@@ -1,180 +1,70 @@
 <!doctype html>
 <html lang="ko">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>상담 채팅</title>
-<style>
-  :root { --bg: #f6f7f9; --fg: #1d2330; --muted: #6b7385; --line: #dde1e8; --me: #2f6fed; --warn: #b54708; --warn-bg: #fef0c7; }
-  * { box-sizing: border-box; }
-  body { margin: 0; font: 15px/1.45 system-ui, sans-serif; background: var(--bg); color: var(--fg); display: flex; flex-direction: column; height: 100dvh; }
-  header { display: flex; gap: 8px; align-items: center; padding: 10px 16px; border-bottom: 1px solid var(--line); background: #fff; }
-  header h1 { font-size: 16px; margin: 0; flex: 1; }
-  .badge { font-size: 12px; padding: 2px 8px; border-radius: 999px; background: #e7ecf5; color: var(--muted); }
-  .badge.aws { background: #fff1e0; color: #a14a00; }
-  .badge.onprem { background: #e3f6ea; color: #13703a; }
-  #banner { display: none; padding: 8px 16px; background: var(--warn-bg); color: var(--warn); font-size: 13px; }
-  #log { flex: 1; overflow-y: auto; padding: 12px 16px; display: flex; flex-direction: column; gap: 8px; }
-  .msg { max-width: 80%; padding: 8px 10px; border-radius: 10px; background: #fff; border: 1px solid var(--line); word-break: break-word; }
-  .msg.mine { align-self: flex-end; border-color: transparent; background: var(--me); color: #fff; }
-  .msg .meta { font-size: 11px; opacity: .7; margin-bottom: 2px; }
-  .msg.pending { opacity: .55; }
-  .msg img { max-width: 220px; display: block; margin-top: 6px; border-radius: 6px; }
-  .msg a { color: inherit; }
-  form { display: flex; gap: 6px; padding: 10px 16px; border-top: 1px solid var(--line); background: #fff; }
-  input[type=text] { flex: 1; min-width: 0; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; font: inherit; }
-  #name { flex: 0 0 90px; }
-  button, label.file { padding: 8px 12px; border: 0; border-radius: 8px; background: var(--me); color: #fff; font: inherit; cursor: pointer; }
-  label.file { background: #e7ecf5; color: var(--fg); }
-  label.file input { display: none; }
-</style>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="referrer" content="no-referrer">
+  <title>Bravo 상담 데모</title>
+  <link rel="stylesheet" href="/chat.css">
+  <script type="module" src="/chat.js"></script>
 </head>
 <body>
-<header>
-  <h1>상담 채팅</h1>
-  <span id="conn" class="badge">연결 중</span>
-  <span id="env" class="badge">-</span>
-</header>
-<div id="banner">전환 작업 중입니다. 보낸 메시지는 잠시 후 자동으로 전송됩니다.</div>
-<div id="log"></div>
-<form id="form">
-  <input id="name" type="text" placeholder="이름" maxlength="40" required>
-  <input id="body" type="text" placeholder="메시지" maxlength="2000" autocomplete="off">
-  <label class="file" title="첨부">📎<input id="file" type="file"></label>
-  <button>보내기</button>
-</form>
-<script>
-const $ = (id) => document.getElementById(id);
-const seen = new Set();
-let lastId = null;
-let retryDelay = 500;
-
-function uuid() {
-  if (crypto.randomUUID) return crypto.randomUUID();
-  // 비보안 컨텍스트(http 휴대폰 접속)용 대체 구현
-  const b = crypto.getRandomValues(new Uint8Array(16));
-  b[6] = (b[6] & 0x0f) | 0x40; b[8] = (b[8] & 0x3f) | 0x80;
-  const h = [...b].map((x) => x.toString(16).padStart(2, "0")).join("");
-  return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
-}
-
-const store = { get: (k) => { try { return localStorage.getItem(k); } catch { return null; } },
-                set: (k, v) => { try { localStorage.setItem(k, v); } catch {} } };
-$("name").value = store.get("name") || "";
-
-function showStatus(s) {
-  const env = $("env");
-  env.textContent = s.env === "aws" ? "AWS" : s.env === "onprem" ? "온프렘" : s.env;
-  env.className = "badge " + s.env;
-  $("banner").style.display = s.write_blocked ? "block" : "none";
-}
-
-function render(m, pending) {
-  const el = document.createElement("div");
-  el.className = "msg" + (m.author === $("name").value ? " mine" : "") + (pending ? " pending" : "");
-  const meta = document.createElement("div");
-  meta.className = "meta";
-  meta.textContent = pending ? `${m.author} · 전송 중` : `${m.author} · ${new Date(m.created_at).toLocaleTimeString()}`;
-  el.append(meta);
-  if (m.body) el.append(document.createTextNode(m.body));
-  if (m.attachment_id) {
-    const url = `/api/attachments/${m.attachment_id}`;
-    if ((m.attachment_type || "").startsWith("image/")) {
-      const img = document.createElement("img");
-      img.src = url; img.alt = m.attachment_name || "";
-      el.append(img);
-    } else {
-      const a = document.createElement("a");
-      a.href = url; a.textContent = `📎 ${m.attachment_name || "첨부"}`;
-      el.append(document.createElement("br"), a);
-    }
-  }
-  return el;
-}
-
-function append(items) {
-  const log = $("log");
-  const stick = log.scrollHeight - log.scrollTop - log.clientHeight < 40;
-  for (const m of items) {
-    if (seen.has(m.id)) continue;
-    seen.add(m.id);
-    lastId = Math.max(lastId ?? 0, m.id);
-    log.append(render(m));
-  }
-  if (stick) log.scrollTop = log.scrollHeight;
-}
-
-// 끊기면 마지막 메시지 id로 다시 붙는다(컷오버 때 서버가 1012로 닫는다).
-function connect() {
-  const proto = location.protocol === "https:" ? "wss" : "ws";
-  const ws = new WebSocket(`${proto}://${location.host}/ws` + (lastId === null ? "" : `?after=${lastId}`));
-  ws.onopen = () => { retryDelay = 500; $("conn").textContent = "연결됨"; };
-  ws.onmessage = (e) => {
-    const data = JSON.parse(e.data);
-    if (data.type === "messages") append(data.items);
-    else showStatus(data);
-  };
-  ws.onclose = () => {
-    $("conn").textContent = "재연결 중";
-    setTimeout(connect, retryDelay);
-    retryDelay = Math.min(retryDelay * 2, 5000);
-  };
-}
-
-// 같은 멱등 키로 성공할 때까지 다시 보낸다. 503이면 Retry-After만큼 기다린다.
-async function sendUntilDone(makeRequest) {
-  for (let attempt = 0; ; attempt++) {
-    let wait = Math.min(500 * 2 ** attempt, 5000);
-    try {
-      const res = await makeRequest();
-      if (res.ok) return res.json();
-      if (res.status === 503) {
-        $("banner").style.display = "block";
-        wait = (Number(res.headers.get("Retry-After")) || 1) * 1000;
-      } else if (res.status < 500) {
-        throw new Error(`${res.status} ${await res.text()}`);
-      }
-    } catch (e) {
-      if (e instanceof Error && /^\d{3} /.test(e.message)) throw e;
-    }
-    await new Promise((r) => setTimeout(r, wait));
-  }
-}
-
-$("form").onsubmit = async (e) => {
-  e.preventDefault();
-  const author = $("name").value.trim();
-  const body = $("body").value;
-  const file = $("file").files[0];
-  if (!author || (!body.trim() && !file)) return;
-  store.set("name", author);
-  $("body").value = ""; $("file").value = "";
-
-  const pending = render({ author, body: body || (file && file.name) }, true);
-  $("log").append(pending);
-  try {
-    let attachmentId = null;
-    if (file) {
-      attachmentId = uuid();
-      await sendUntilDone(() => {
-        const fd = new FormData();
-        fd.append("file", file);
-        return fetch(`/api/attachments/${attachmentId}`, { method: "PUT", body: fd });
-      });
-    }
-    const message = { idempotency_key: uuid(), author, body, attachment_id: attachmentId };
-    await sendUntilDone(() => fetch("/api/messages", {
-      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(message),
-    }));
-  } catch (err) {
-    alert(`전송 실패: ${err.message}`);
-  } finally {
-    pending.remove();
-  }
-};
-
-fetch("/api/info").then((r) => r.json()).then(showStatus).catch(() => {});
-connect();
-</script>
+  <main class="shell">
+    <aside class="overview" aria-label="데모 안내">
+      <div class="brand"><span class="mark" aria-hidden="true">B</span> BRAVO LAB</div>
+      <p class="eyebrow">서비스 이전 체험</p>
+      <h1>환경이 바뀌어도,<br>대화는 이어지도록.</h1>
+      <p class="intro">메시지를 보내고, 연결된 앱의 환경과 전송 상태를 함께 확인하세요.</p>
+      <div class="environment-card">
+        <span class="small-label">현재 연결된 앱</span>
+        <strong id="env">연결 확인 중</strong>
+        <span id="conn" class="connection" role="status">연결 중</span>
+        <p id="environment-note">서버가 알려 준 실행 환경을 표시합니다.</p>
+      </div>
+      <div class="journey" aria-label="참여 방법">
+        <div><span>01</span><p>별명을 입력하고 대화에 참여</p></div>
+        <div><span>02</span><p>전환 중에는 같은 요청으로 재전송</p></div>
+        <div><span>03</span><p>연결 복구 후 메시지 도착 확인</p></div>
+      </div>
+      <button id="share" class="secondary" type="button">휴대폰으로 참여 · QR</button>
+      <p class="privacy">공개된 데모 대화방입니다. 실제 고객 정보·계좌번호·비밀번호를 입력하지 마세요.</p>
+    </aside>
+    <section class="chat-panel" aria-label="금융 상담 데모 대화방">
+      <header class="chat-header">
+        <div><p class="eyebrow">FINANCE DEMO</p><h2>상담 라운지 <span class="demo-tag">모의 상담</span></h2></div>
+        <button id="share-mobile" class="icon-button" type="button" aria-label="참여 QR 열기">QR</button>
+      </header>
+      <div id="banner" class="notice" role="status" hidden></div>
+      <div id="log" role="log" aria-label="상담 메시지" aria-live="polite" aria-relevant="additions">
+        <div id="empty" class="empty-state"><span aria-hidden="true">↗</span><h3>첫 대화를 시작해 보세요</h3><p>“이체 한도 변경은 어디서 하나요?”처럼<br>개인정보 없는 모의 질문을 보내 주세요.</p></div>
+      </div>
+      <button id="jump" class="jump" type="button" hidden>새 메시지 · 아래로</button>
+      <section id="outbox" aria-label="전송 대기 메시지" aria-live="polite" hidden></section>
+      <div id="file-preview" class="file-preview" hidden></div>
+      <form id="form">
+        <div class="identity"><label for="name">참여 별명</label><input id="name" type="text" placeholder="예: 방문자 07" maxlength="40" autocomplete="off" required></div>
+        <div class="composer">
+          <label for="body" class="sr-only">메시지</label>
+          <textarea id="body" placeholder="모의 상담 메시지를 입력하세요" maxlength="2000" rows="2"></textarea>
+          <div class="composer-actions">
+            <label class="file-button" for="file">+ 첨부<input id="file" type="file" aria-label="첨부파일 선택"></label>
+            <span id="counter">0 / 2,000</span>
+            <button id="send" type="submit">보내기 <span aria-hidden="true">↑</span></button>
+          </div>
+        </div>
+        <p id="feedback" class="feedback" role="status"></p>
+      </form>
+      <footer>공개 모의 대화방 · 개인정보 입력 금지. 전송 완료 전에는 이 창을 닫지 마세요.</footer>
+    </section>
+  </main>
+  <dialog id="share-dialog" aria-labelledby="share-title">
+    <div class="dialog-heading"><h2 id="share-title">같은 대화방에 참여</h2><button id="close-share" class="icon-button" type="button" aria-label="QR 닫기">✕</button></div>
+    <p>휴대폰 카메라로 QR을 읽거나 주소를 복사하세요.</p>
+    <canvas id="qr" width="256" height="256" role="img" aria-label="현재 대화방 접속 QR"></canvas>
+    <input id="share-url" type="text" readonly aria-label="공유 주소">
+    <button id="copy-link" type="button">주소 복사</button>
+    <p id="share-note" role="status"></p>
+  </dialog>
+  <noscript>이 데모 채팅은 JavaScript를 켜야 사용할 수 있습니다.</noscript>
 </body>
 </html>

@@ -141,6 +141,10 @@ jobs:
               pnpm run --if-present lint
               pnpm run --if-present test
               pnpm run --if-present build
+              if [ -f playwright.config.js ]; then
+                pnpm exec playwright install --with-deps chromium webkit
+                pnpm run test:browser
+              fi
             )
             echo "::endgroup::"
           done <<< "$DIRS"
