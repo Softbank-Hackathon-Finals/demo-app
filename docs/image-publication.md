@@ -21,10 +21,12 @@ BuildKit의 max provenance와 SBOM을 OCI attestation으로 함께 게시한다.
 성공 증거를 확보한 뒤 이 임시 trigger와 기본 SHA를 제거했다. 이후에는
 명시적인 SHA 입력 실행만 사용한다. PR 필수 CI나 보호 규칙은 변경하지 않는다.
 
-GHCR package의 최초 기본 가시성은 별도 확인한다. runner의 인증된 pull 성공은 익명 pull이나 EKS/RKE2 pull 성공을 뜻하지 않는다. 공개 데모 소스에 맞춰 package를 public으로 둘지는 소유자가 설정하고, 익명 pull과 실제 소비 클러스터의 동일 digest pull을 각각 기록한다. package가 private인 동안 장기 PAT를 공용 imagePullSecret으로 복제해 해결하지 않는다.
+조직 정책에 따라 GHCR package는 private으로 유지한다. runner의 인증된 pull
+성공은 EKS/RKE2 pull 성공을 뜻하지 않는다. 장기 PAT를 공용 imagePullSecret으로
+복제하지 않고 [비공개 전송 경로](private-image-transfer.md)를 사용한다.
 
-게시된 `image-receipt.json`의 digest를 사용해 빈 임시 폴더로 익명 다운로드를
-검증할 수 있다. `--src-no-creds`는 기존 로컬 registry 인증을 사용하지 않는다.
+아래 익명 다운로드 명령은 최초 가시성 진단을 재현하는 방법이며, 현재 private
+package의 소비 경로가 아니다. `--src-no-creds`는 기존 로컬 인증을 사용하지 않는다.
 
 ```sh
 image='ghcr.io/softbank-hackathon-finals/demo-chat'
@@ -52,8 +54,9 @@ GitHub UI에서 이번 실행의 index와 두 하위 manifest, 연결된 source 
 현재 package는 private이고 조직 관리자가 public/internal 전환을 비활성화한
 상태다. 조직 정책은 변경하지 않았다. 인증된 runner pull은 성공했으나 익명
 manifest 조회는 실패했으며, RKE2/EKS 이미지 pull 완료로 기록하지 않았다.
-조직의 공개 게시 범위가 결정되면 같은 digest로 익명 다운로드와 클러스터
-다운로드를 이어간다. 이 대기 상태는 `consumer-access.json`에 별도로 기록한다.
+최초 대기 상태는 `consumer-access.json`에 역사적 기록으로 보존한다.
+이후 조직 정책을 유지하고 비공개 접근을 준비하기로 결정했다. 현재 경로는
+같은 digest를 private ECR로 전송하고 각 클러스터의 임시 인증으로 받는 방식이다.
 
 ## 로컬 검사
 
