@@ -41,6 +41,20 @@ test "$(cat "$destination/downloaded-digest.txt")" = "$digest"
 
 워크플로에는 앱 DB/Secrets Manager/S3 설정이나 클러스터 배포 단계가 없다. 앱의 실행 준비와 업무 연결은 T6/T30에서 같은 digest로 별도 검증한다. 이 이미지 게시 성공만으로 EKS/RKE2 또는 전체 T7 태스크를 완료 처리하지 않는다.
 
+## 2026-11-03 확인 결과
+
+[게시 실행 41606831578](https://github.com/Softbank-Hackathon-Finals/demo-chat/actions/runs/41606831578)은
+main 소스 `ce5727eb3e3d2355077afdaadcb1a722aba9c7cd`로 성공했다. 식별값과
+검사 결과는 `docs/evidence/image-publication-2026-11-03/`에 있다.
+GitHub UI에서 이번 실행의 index와 두 하위 manifest, 연결된 source repository를
+대조했다. 기존의 다른 버전은 관찰되지 않았다.
+
+현재 package는 private이고 조직 관리자가 public/internal 전환을 비활성화한
+상태다. 조직 정책은 변경하지 않았다. 인증된 runner pull은 성공했으나 익명
+manifest 조회는 실패했으며, RKE2/EKS 이미지 pull 완료로 기록하지 않았다.
+조직의 공개 게시 범위가 결정되면 같은 digest로 익명 다운로드와 클러스터
+다운로드를 이어간다. 이 대기 상태는 `consumer-access.json`에 별도로 기록한다.
+
 ## 로컬 검사
 
 ```sh
