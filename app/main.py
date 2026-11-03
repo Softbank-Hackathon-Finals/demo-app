@@ -30,7 +30,7 @@ from pydantic import BaseModel, Field, model_validator
 
 from app.config import Settings
 from app.db_secret import DbCredentials, fetch_db_credentials
-from app.sockets import SocketSession
+from app.sockets import CloseUnconfirmed, SocketSession
 from app.storage import AttachmentStorage
 from app.store import IdempotencyConflict, Store, UnknownAttachment
 
@@ -246,10 +246,11 @@ def create_app(
     async def close_websockets():
         if not app.state.write_blocked:
             raise HTTPException(409, "block writes before closing cutover connections")
+        sockets.difference_update(s for s in tuple(sockets) if s.closed)
         try:
             async with asyncio.timeout(2):
                 closed = await asyncio.gather(*(s.close_for_cutover() for s in list(sockets)))
-        except TimeoutError as error:
+        except (TimeoutError, CloseUnconfirmed) as error:
             raise HTTPException(503, "connection close could not be confirmed") from error
         return {"closed": sum(closed), "code": 1012}
 
@@ -288,9 +289,16 @@ def create_app(
                 if items is None or len(items) < PAGE_SIZE:
                     await asyncio.wait({receiver}, timeout=settings.poll_interval)
         except WebSocketDisconnect:
-            pass
+            session.closed = True
         finally:
-            sockets.discard(session)
+            # A cancelled handler is not proof that an in-flight close was sent.
+            # Preserve uncertain operations for the next admin request.
+            peer_disconnected = (
+                receiver.done() and not receiver.cancelled()
+                and receiver.exception() is None and receiver.result() is True
+            )
+            if session.closed or session.close_task is None or peer_disconnected:
+                sockets.discard(session)
             receiver.cancel()
 
     app.mount("/", StaticFiles(directory=STATIC_DIR, html=True), name="static")
@@ -303,4 +311,4 @@ async def _drain(websocket: WebSocket) -> None:
         while True:
             await websocket.receive_text()
     except WebSocketDisconnect:
-        pass
+        return True
