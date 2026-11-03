@@ -1,0 +1,13 @@
+{
+  "base_image": "python:3.13-slim@sha256:ae14d4ce8771606477a81446e7ef429edd6762305fc50c84507c1041fa8285d1",
+  "pip_version": "26.2.2",
+  "vendor_manifest": "/usr/local/lib/python3.13/site-packages/pip/_vendor/vendor.txt",
+  "affected_vendored_packages": [
+    "msgpack==1.1.2",
+    "urllib3==2.7.0",
+    "setuptools==70.3.0"
+  ],
+  "bundled_installer_wheels": [
+    "/usr/local/lib/python3.13/ensurepip/_bundled/pip-26.2.2-py3-none-any.whl"
+  ]
+}
