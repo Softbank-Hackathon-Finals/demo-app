@@ -74,6 +74,17 @@ actionlint .github/workflows/publish-image.yml
 [PR #10](https://github.com/Softbank-Hackathon-Finals/demo-chat/pull/10)의 main 병합
 `1a57a5410a1d1a88d1884201407bcff8019e868d`를 고정해
 [게시 실행 41656345415](https://github.com/Softbank-Hackathon-Finals/demo-chat/actions/runs/41656345415)을 완료했다.
-현재 전송 입력은 `docs/evidence/image-publication-2026-11-03/`의 새 영수증이며,
-이전 게시 기록은 `previous-ce5727eb/`에 그대로 보존했다. 검토된 증빙 갱신 뒤
-기존 전송 워크플로로 같은 digest를 ECR에 복사한다. 실제 앱 rollout은 별도 소유자의 작업이다.
+이 게시 기록은 `docs/evidence/image-publication-2026-11-03/previous-1a57a541/`에
+보존했고, 더 이전 게시 기록은 `previous-ce5727eb/`에 남아 있다.
+
+## 종료 요청 재시도 수정 이미지 갱신
+
+[PR #12](https://github.com/Softbank-Hackathon-Finals/demo-chat/pull/12)의 main 병합
+`66e7419f404f4ec4addc71014aabfcdd44f34688`을 고정해
+[게시 실행 41663726176](https://github.com/Softbank-Hackathon-Finals/demo-chat/actions/runs/41663726176)을 완료했다.
+이 버전은 종료 전송이 지연돼 HTTP 요청이 시간초과되더라도 같은 종료 작업을 유지하고,
+동시 요청과 재시도가 종료를 다시 보내지 않게 한다. 완료를 확인할 수 없으면 503을 유지한다.
+
+현재 전송 입력은 `docs/evidence/image-publication-2026-11-03/`의 영수증이다.
+검토된 증빙 갱신 뒤 기존 전송 워크플로로 같은 digest를 ECR에 복사한다.
+실제 앱 rollout과 WebSocket 동작 확인은 T12 담당이 이어서 수행한다.
