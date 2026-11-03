@@ -30,6 +30,7 @@ from pydantic import BaseModel, Field, model_validator
 
 from app.config import Settings
 from app.db_secret import DbCredentials, fetch_db_credentials
+from app.sockets import SocketSession
 from app.storage import AttachmentStorage
 from app.store import IdempotencyConflict, Store, UnknownAttachment
 
@@ -123,6 +124,7 @@ def create_app(
     # 쓰기 차단 스위치는 프로세스마다 따로 둔다. 컷오버 중에는 DB가 멈춰 있어 DB에 둘 수 없다.
     # Executor는 모든 인스턴스(진입점)에 스위치를 켠다.
     app.state.write_blocked = os.environ.get("WRITE_BLOCKED", "false") == "true"
+    sockets: set[SocketSession] = set()
 
     def require_writable() -> None:
         if app.state.write_blocked:
@@ -240,6 +242,17 @@ def create_app(
             log.warning("write block %s by %s", "on" if change.blocked else "off", request.client)
         return status()
 
+    @app.post("/admin/websockets/close", dependencies=[Depends(require_admin)])
+    async def close_websockets():
+        if not app.state.write_blocked:
+            raise HTTPException(409, "block writes before closing cutover connections")
+        try:
+            async with asyncio.timeout(2):
+                closed = await asyncio.gather(*(s.close_for_cutover() for s in list(sockets)))
+        except TimeoutError as error:
+            raise HTTPException(503, "connection close could not be confirmed") from error
+        return {"closed": sum(closed), "code": 1012}
+
     @app.websocket("/ws")
     async def ws(websocket: WebSocket, after: int | None = None):
         """마지막 메시지 id 이후를 DB에서 주기적으로 조회해 보낸다.
@@ -248,12 +261,14 @@ def create_app(
         서버 메모리 · pub/sub · LISTEN/NOTIFY는 쓰지 않는다.
         """
         await websocket.accept()
-        await websocket.send_json({"type": "hello", **status()})
+        session = SocketSession(websocket)
+        sockets.add(session)
         sent_status = status()
         receiver = asyncio.create_task(_drain(websocket))
         last_id = after
         try:
-            while not receiver.done():
+            await session.send_json({"type": "hello", **status()})
+            while not receiver.done() and not session.closed:
                 try:
                     items = await app.state.store.list_messages(last_id, PAGE_SIZE)
                 except OperationalError:
@@ -262,19 +277,20 @@ def create_app(
                     items = None
                 if items:
                     last_id = items[-1]["id"]
-                    await websocket.send_json(
+                    await session.send_json(
                         {"type": "messages", "items": jsonable_encoder(items)}
                     )
                 elif items is not None and last_id is None:
                     last_id = 0
                 if status() != sent_status:
                     sent_status = status()
-                    await websocket.send_json({"type": "status", **sent_status})
+                    await session.send_json({"type": "status", **sent_status})
                 if items is None or len(items) < PAGE_SIZE:
                     await asyncio.wait({receiver}, timeout=settings.poll_interval)
         except WebSocketDisconnect:
             pass
         finally:
+            sockets.discard(session)
             receiver.cancel()
 
     app.mount("/", StaticFiles(directory=STATIC_DIR, html=True), name="static")
