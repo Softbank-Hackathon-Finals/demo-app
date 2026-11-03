@@ -6,8 +6,8 @@
 
 1. `source_sha`에 검토한 `main` 커밋의 40자리 SHA를 넣어 workflow를 실행한다. 소스가 현재 `origin/main`의 조상이 아니면 실패한다.
 2. `git archive`로 생성한 컨텍스트와 소스 manifest를 만들고 기존 Dockerfile로 `linux/amd64` OCI 이미지를 한 번 빌드한다.
-3. 그 OCI 아카이브에 Trivy HIGH/CRITICAL 취약점(수정 가능한 항목)과 secret 검사를 수행한다. 실패하면 게시하지 않는다. 검사 예외는 추가하지 않는다.
-4. 이 job의 일시적 `GITHUB_TOKEN`으로 로그인하고 **검사한 동일 아카이브**를 digest 보존 옵션으로 GHCR에 복사한다. 개인 토큰이나 장기 AWS 키를 사용하지 않는다.
+3. 그 OCI layout 디렉터리에 Trivy HIGH/CRITICAL 취약점(수정 가능한 항목)과 secret 검사를 수행한다. 실패하면 게시하지 않는다. 검사 예외는 추가하지 않는다. Trivy의 OCI 입력은 tar 파일이 아닌 layout 디렉터리를 사용한다.
+4. 이 job의 일시적 `GITHUB_TOKEN`으로 로그인하고 **검사한 동일 OCI layout**을 digest 보존 옵션으로 GHCR에 복사한다. 개인 토큰이나 장기 AWS 키를 사용하지 않는다.
 5. 반환 digest가 빌드 digest와 일치하는지 검사하고, registry에서 digest로 실제 `docker pull`한다. 소스 revision label, 실행 UID 10001, OCI attestation manifest도 확인한다.
 6. source SHA/archive hash, digest, pull 결과, registry index, Trivy JSON을 Actions artifact로 남긴다. 이미지 아카이브와 Docker 인증 파일은 artifact에 넣지 않는다. 로그인 action은 종료 시 인증을 정리한다.
 

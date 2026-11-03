@@ -45,7 +45,7 @@ jobs:
         with:
           context: ${{ runner.temp }}/image-source
           platforms: linux/amd64
-          outputs: type=oci,dest=${{ runner.temp }}/image.tar
+          outputs: type=oci,dest=${{ runner.temp }}/image-layout,tar=false
           provenance: mode=max
           sbom: true
           labels: |
@@ -56,7 +56,7 @@ jobs:
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           scan-type: image
-          input: ${{ runner.temp }}/image.tar
+          input: ${{ runner.temp }}/image-layout
           scanners: vuln,secret
           severity: HIGH,CRITICAL
           ignore-unfixed: true
@@ -82,7 +82,7 @@ jobs:
           authfile="${DOCKER_CONFIG:-$HOME/.docker}/config.json"
           skopeo copy --all --preserve-digests --dest-authfile "$authfile" \
             --digestfile "$RUNNER_TEMP/pushed-digest.txt" \
-            "oci-archive:$RUNNER_TEMP/image.tar" "docker://$IMAGE:sha-$SOURCE_SHA"
+            "oci:$RUNNER_TEMP/image-layout" "docker://$IMAGE:sha-$SOURCE_SHA"
           digest=$(cat "$RUNNER_TEMP/pushed-digest.txt")
           test "$digest" = "$BUILD_DIGEST"
           docker pull --platform linux/amd64 "$IMAGE@$digest"
