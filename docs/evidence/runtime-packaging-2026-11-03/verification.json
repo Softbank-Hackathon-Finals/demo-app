@@ -1,0 +1,35 @@
+{
+  "verified_at": "2026-11-03T08:49:55.285897+00:00",
+  "source_base": "4a24a1f798c31dafd8f35866aa42ffc5878648cd",
+  "local_image_only": true,
+  "platform": "linux/amd64",
+  "scan": {
+    "scanner_version": "0.76.1",
+    "scanners": [
+      "vuln",
+      "secret"
+    ],
+    "severity": [
+      "HIGH",
+      "CRITICAL"
+    ],
+    "ignore_unfixed": true,
+    "vulnerability_count": 0,
+    "secret_match_count": 0,
+    "exit_code": 0
+  },
+  "packaging_probe": {
+    "runtime_uid": 10001,
+    "app_import_and_health_handlers": "pass",
+    "installer_modules_absent": true,
+    "uv_absent": true,
+    "external_service_integration_tested": false
+  },
+  "app_tests": {
+    "passed": 15,
+    "skipped_external_database_tests": 3
+  },
+  "ruff": "pass",
+  "hadolint": "pass",
+  "registry_publish_verified": false
+}
