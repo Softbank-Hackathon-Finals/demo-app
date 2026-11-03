@@ -11,6 +11,8 @@ dist/
 *.tsbuildinfo
 .next/
 out/
+playwright-report/
+test-results/
 
 # Go
 /bin/
