@@ -29,7 +29,7 @@ jobs:
       packages: write
     env:
       IMAGE: ghcr.io/softbank-hackathon-finals/demo-chat
-      SOURCE_SHA: ${{ inputs.source_sha || '4a24a1f798c31dafd8f35866aa42ffc5878648cd' }}
+      SOURCE_SHA: ${{ inputs.source_sha || 'ce5727eb3e3d2355077afdaadcb1a722aba9c7cd' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -102,6 +102,8 @@ jobs:
           digest=$(cat "$RUNNER_TEMP/pushed-digest.txt")
           test "$digest" = "$BUILD_DIGEST"
           docker pull --platform linux/amd64 "$IMAGE@$digest"
+          docker run --rm --network none -i --platform linux/amd64 "$IMAGE@$digest" \
+            .venv/bin/python - < "$RUNNER_TEMP/image-source/scripts/check_runtime_image.py"
           docker image inspect "$IMAGE@$digest" > "$RUNNER_TEMP/pulled-image.json"
           docker buildx imagetools inspect "$IMAGE@$digest" --raw > "$RUNNER_TEMP/registry-index.json"
           SOURCE_SHA="$SOURCE_SHA" IMAGE="$IMAGE" DIGEST="$digest" python3 - <<'PY'
@@ -116,6 +118,7 @@ jobs:
           result = {'source_sha': os.environ['SOURCE_SHA'], 'image': os.environ['IMAGE'], 'digest': os.environ['DIGEST'],
                     'platform': 'linux/amd64', 'scanned_before_publish': True, 'registry_pull_verified': True,
                     'runtime_user': '10001', 'attestation_manifest_present': True,
+                    'runtime_packaging_probe_verified': True,
                     'cluster_pull_verified': False, 'anonymous_pull_verified': False}
           (root / 'image-receipt.json').write_text(json.dumps(result, indent=2) + '\n')
           print(json.dumps(result, sort_keys=True))
