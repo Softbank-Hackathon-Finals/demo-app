@@ -1,7 +1,7 @@
 {
-  "observed_date": "2026-11-03",
-  "source_sha": "1a57a5410a1d1a88d1884201407bcff8019e868d",
-  "publication_run": "https://github.com/Softbank-Hackathon-Finals/demo-chat/actions/runs/41656345415",
+  "observed_date": "2026-11-04",
+  "source_sha": "66e7419f404f4ec4addc71014aabfcdd44f34688",
+  "publication_run": "https://github.com/Softbank-Hackathon-Finals/demo-chat/actions/runs/41663726176",
   "authenticated_registry_pull_verified": true,
   "runtime_packaging_probe_verified": true,
   "anonymous_pull_verified": false,
@@ -10,5 +10,6 @@
   "organization_policy_change_performed": false,
   "long_lived_pull_credentials_created": false,
   "next_action": "Merge this publication record through the required checks, then run the existing main-only private transfer for this exact source and digest.",
+  "prior_publication_record": "previous-1a57a541/",
   "prior_visibility_observation": "previous-ce5727eb/consumer-access.json"
 }
