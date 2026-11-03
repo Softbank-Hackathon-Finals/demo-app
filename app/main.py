@@ -30,6 +30,7 @@ from pydantic import BaseModel, Field, model_validator
 
 from app.config import Settings
 from app.db_secret import DbCredentials, fetch_db_credentials
+from app.environment import EnvironmentFastAPI
 from app.sockets import CloseUnconfirmed, SocketSession
 from app.storage import AttachmentStorage
 from app.store import IdempotencyConflict, Store, UnknownAttachment
@@ -117,7 +118,9 @@ def create_app(
         if pool is not None:
             await pool.close()
 
-    app = FastAPI(title="demo-chat", lifespan=lifespan)
+    app = EnvironmentFastAPI(
+        environment=settings.app_env, title="demo-chat", lifespan=lifespan
+    )
     app.state.settings = settings
     app.state.store = store
     app.state.storage = storage
