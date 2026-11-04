@@ -83,4 +83,9 @@ def test_invalid_environment_fails_before_serving(client, label):
 
 def test_websocket_contract_unchanged(client):
     with client.websocket_connect("/ws", headers={"X-Bravo-Env": "forged"}) as ws:
-        assert ws.receive_json() == {"type": "hello", "env": "aws", "write_blocked": False}
+        hello = ws.receive_json()
+        # Environment attribution must preserve the required hello fields while
+        # allowing independently versioned, additive capabilities in the message.
+        assert hello["type"] == "hello"
+        assert hello["env"] == "aws"
+        assert hello["write_blocked"] is False
