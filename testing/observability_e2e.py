@@ -25,6 +25,11 @@ parser.add_argument(
     "--windows", type=Path, required=True, help="T36 services/observability directory"
 )
 parser.add_argument(
+    "--console",
+    type=Path,
+    help="Optional T21 services/console checkout for actual observation projection",
+)
+parser.add_argument(
     "--output", type=Path, required=True, help="New private result directory; must not exist"
 )
 parser.add_argument(
@@ -315,6 +320,8 @@ try:
 
     for name, directory in (("t18", LOAD), ("t36", T36), ("t37", OBS), ("demo", DEMO)):
         result[name + "_commit"] = cmd("git", "-C", str(directory), "rev-parse", "HEAD")
+    if args.console:
+        result["t21_commit"] = cmd("git", "-C", str(args.console.resolve()), "rev-parse", "HEAD")
     files = ["app/main.py", "app/environment.py", "app/metrics.py", "pyproject.toml", "uv.lock"]
     (ROOT / "app-source-hashes.json").write_text(
         json.dumps(
@@ -427,12 +434,14 @@ try:
             result["checks"][name + "_header_attribution"] = (
                 sum(r.report["windows"]["unattributed_total"].values()) == 0
             )
-            result["checks"].update({
-                name + "_" + key: value
-                for key, value in whole_run_checks(
-                    r.report, duration=args.duration_per_environment
-                ).items()
-            })
+            result["checks"].update(
+                {
+                    name + "_" + key: value
+                    for key, value in whole_run_checks(
+                        r.report, duration=args.duration_per_environment
+                    ).items()
+                }
+            )
             result[name + "_report"] = r.report
             result[name + "_windows"] = r.windows
             print(name + "_load_complete code=" + str(r.code), flush=True)
@@ -448,6 +457,28 @@ try:
             name: view("/v1/observability/environments/" + name + "/http")
             for name in ("aws", "onprem")
         }
+
+        def console_view(phase):
+            console = args.console.resolve()
+            proc = subprocess.run(
+                [str(console / ".venv/bin/python"), str(console / "testing/live_observations.py")],
+                input=json.dumps({"origin": api, "token": token, "phase": phase}),
+                capture_output=True,
+                text=True,
+                env=env,
+                cwd=console,
+                timeout=40,
+            )
+            if not proc.stdout or len(proc.stdout) > 65536:
+                raise RuntimeError("console_qualification_failed")
+            value = json.loads(proc.stdout)
+            result["checks"]["console_" + phase] = (
+                proc.returncode == 0 and value.get("status") == "PASS"
+            )
+            return value
+
+        if args.console:
+            result["console_collecting"] = console_view("collecting")
         labels = prom.get(
             prometheus + "/api/v1/series",
             params={"match[]": '{__name__=~"http_server_request_duration.*"}'},
@@ -537,6 +568,8 @@ try:
         result["checks"]["source_still_observed"] = (
             result["after_collector_stop"]["aws"]["state"] == "OK"
         )
+        if args.console:
+            result["console_after_collector_stop"] = console_view("target-stopped")
         print("collector_stop_observed", flush=True)
     result["status"] = "PASS" if all(result["checks"].values()) else "FAIL"
 except Exception as ex:
