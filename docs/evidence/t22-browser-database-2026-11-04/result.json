@@ -1,0 +1,49 @@
+{
+  "scope": "local browser / shared PostgreSQL / test attachment storage",
+  "database_migration": "NOT_VERIFIED",
+  "cloud_cutover": "NOT_VERIFIED",
+  "postgres_version": "17.11 (Homebrew)",
+  "python_exit_code": 0,
+  "browser_exit_code": 0,
+  "owned_postgres_stopped": true,
+  "checked_at": "2026-11-04T08:57:30.839326+00:00",
+  "python_passed": 118,
+  "browser_passed": 18,
+  "node_passed": 10,
+  "app_role": "chat_app: non-superuser, no createdb/createrole/replication",
+  "source_main": "8d82a9241d3894737778a77d58349e1aee54eca1",
+  "sources": [
+    {
+      "artifact": "app/store.py",
+      "sha256": "757cdbf28f7833e492d3c98271b84f10e7ed23db41d0a66ed81e808a0bc2aebd"
+    },
+    {
+      "artifact": "app/main.py",
+      "sha256": "e064410e9e40ad4b4f4894adfda0746d23703e2e2d678d90aeb785efef82cb5a"
+    },
+    {
+      "artifact": "tests/browser_server.py",
+      "sha256": "6221835c79b9b6cdcc0aeb4f3ad9c283c6a9bfe3cc25e9f7572758250dd4bc91"
+    },
+    {
+      "artifact": "tests/browser_database.py",
+      "sha256": "e4b31be32a196459d5bea02b127486c3d4e35f2a124eda08d94e6523eb81490c"
+    },
+    {
+      "artifact": "tests/test_browser_database.py",
+      "sha256": "0af007a1f9eb7b4d6c0c00131e1ba0d1680349b6b385faff95748db1da685f84"
+    },
+    {
+      "artifact": "tests/ui-browser/chat.spec.js",
+      "sha256": "7f27d05508baaad7cd9fe003261a6c7c3be8e1bb13a860e2cd6d1acaccb4ce36"
+    },
+    {
+      "artifact": "testing/browser_database.py",
+      "sha256": "61430169c4fa66fc7c620ec72bbea74db238bbd1514962f14ebd4637f6385e68"
+    }
+  ],
+  "private_log_sha256": {
+    "python.log": "1ff6a66c72757dfcc6f8cc20431428b560f075d249575976c7041ffd69f8a2a7",
+    "browser.log": "d817aa798476451756b15978ae6fa86704aa4a88e8d2075babcbd89718146038"
+  }
+}

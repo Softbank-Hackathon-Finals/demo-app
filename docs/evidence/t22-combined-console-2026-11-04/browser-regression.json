@@ -1,0 +1,22 @@
+{
+  "status": "PASS",
+  "scope": "in-memory browser application contract, not database or environment migration",
+  "combined_local_revision": "16d9433076ffd675e1fa48d1615f93cd00a7a9f1",
+  "source_components": [
+    "demo-chat PR14",
+    "demo-chat PR15",
+    "demo-chat PR16",
+    "immutable attachment candidate now PR17"
+  ],
+  "browser_tests_passed": 16,
+  "projects": [
+    "chromium",
+    "webkit"
+  ],
+  "retries": 0,
+  "test_log_sha256": "8a858dfd1b19e3c689f1238dde003dfa5bdf808613c7ece5ee10f2ab6925a488",
+  "prior_attempt": "failed before tests because the test-host venv lacked declared pytest; restored locked dev group without code changes",
+  "database": "in-memory fixture",
+  "production_authentication": false,
+  "cross_environment_cutover": false
+}

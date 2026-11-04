@@ -18,10 +18,18 @@ class Settings:
     retry_after: int = 2
     db_wait_seconds: float = 5
     max_attachment_bytes: int = 10 * 1024 * 1024
+    attachment_upload_enabled: bool = True
+
+    def __post_init__(self):
+        if type(self.attachment_upload_enabled) is not bool:
+            raise ValueError("attachment_upload_enabled must be a boolean")
 
     @classmethod
     def from_env(cls) -> "Settings":
         env = os.environ
+        upload_enabled = env.get("ATTACHMENT_UPLOAD_ENABLED", "true")
+        if upload_enabled not in {"true", "false"}:
+            raise ValueError("ATTACHMENT_UPLOAD_ENABLED must be true or false")
         return cls(
             app_env=env.get("APP_ENV", "local"),
             db_host=env["DB_HOST"],
@@ -36,4 +44,5 @@ class Settings:
             tx_timeout_ms=int(env.get("TX_TIMEOUT_MS", "200")),
             retry_after=int(env.get("WRITE_BLOCK_RETRY_AFTER", "2")),
             db_wait_seconds=float(env.get("DB_WAIT_SECONDS", "5")),
+            attachment_upload_enabled=upload_enabled == "true",
         )

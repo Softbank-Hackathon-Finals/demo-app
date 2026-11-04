@@ -8,6 +8,7 @@ const pending = new Set();
 const rasterTypes = new Set(['image/png', 'image/jpeg', 'image/gif', 'image/webp']);
 let renderedFloor = 0, socket, reconnectTimer, handshakeTimer, reconnectAttempt = 0;
 let connected = false, blocked = false, previewUrl, stopping = false;
+let uploadsEnabled = false;
 
 function uuid() {
   if (crypto.randomUUID) return crypto.randomUUID();
@@ -37,6 +38,14 @@ function status(data) {
   if (typeof data.env !== 'string' || typeof data.write_blocked !== 'boolean') throw new Error('invalid_status');
   $('env').textContent = ({ aws: 'AWS', onprem: '온프렘', local: '로컬' })[data.env] || '미확인 환경';
   blocked = data.write_blocked; notice();
+  // An old or incomplete status never grants a new upload capability.
+  uploadsEnabled = data.attachment_upload_enabled === true;
+  $('file').disabled = !uploadsEnabled;
+  $('upload-policy').textContent = uploadsEnabled ? '' : '이전 준비 중에는 새 첨부파일을 올릴 수 없습니다. 메시지와 기존 첨부 조회는 이용할 수 있습니다.';
+  $('upload-policy').hidden = uploadsEnabled;
+  if (!uploadsEnabled && $('file').files.length) {
+    $('file').value = ''; clearPreview();
+  }
 }
 
 function messageElement(m) {
@@ -140,6 +149,7 @@ async function send(entry) {
   const options = { signal: entry.controller.signal, onWait: () => { entry.state.textContent = '응답 대기 · 같은 요청으로 재시도 중'; } };
   try {
     if (entry.file && !entry.uploaded) {
+      if (!uploadsEnabled) throw Object.assign(new Error('uploads_disabled'), { code: 'uploads_disabled' });
       await deliver((signal) => {
         const form = new FormData(); form.append('file', entry.file);
         return fetch(`/api/attachments/${entry.message.attachment_id}`, { method: 'PUT', body: form, signal });
@@ -161,8 +171,8 @@ async function send(entry) {
     append([saved]); pending.delete(entry); entry.el.remove();
     $('feedback').textContent = `메시지 #${saved.id} 저장을 확인했습니다.`;
   } catch (error) {
-    const permanent = ['conflict', 'rejected', 'too_large'].includes(error.code);
-    entry.state.textContent = ({ conflict: '내용 충돌 · 새 메시지로 작성해 주세요', rejected: '요청 거부 · 입력을 확인해 주세요', too_large: '첨부 용량 초과', paused: '재시도 일시 정지 · 저장 여부 미확인' })[error.code] || '자동 재시도 종료 · 저장 여부 미확인';
+    const permanent = ['conflict', 'rejected', 'too_large', 'uploads_disabled'].includes(error.code);
+    entry.state.textContent = ({ uploads_disabled: '첨부 업로드 제한 · 첨부 없이 새 메시지를 작성해 주세요', conflict: '내용 충돌 · 새 메시지로 작성해 주세요', rejected: '요청 거부 · 입력을 확인해 주세요', too_large: '첨부 용량 초과', paused: '재시도 일시 정지 · 저장 여부 미확인' })[error.code] || '자동 재시도 종료 · 저장 여부 미확인';
     entry.retry.hidden = permanent; entry.pause.hidden = true; entry.dismiss.hidden = false;
   } finally { entry.running = false; updateOutbox(); }
 }
@@ -170,6 +180,7 @@ async function send(entry) {
 $('form').onsubmit = (event) => {
   event.preventDefault(); if (pending.size >= 10) return;
   const author = $('name').value.trim(), body = $('body').value, file = $('file').files[0];
+  if (file && !uploadsEnabled) { $('feedback').textContent = '현재 새 첨부파일 업로드가 제한되어 있습니다.'; return; }
   if (!author || (!body.trim() && !file)) { $('feedback').textContent = '별명과 메시지 또는 첨부파일을 입력해 주세요.'; return; }
   try { sessionStorage.setItem('bravo-alias', author); } catch { /* No message contents are persisted. */ }
   const entry = { message: Object.freeze({ idempotency_key: uuid(), author, body, attachment_id: file ? uuid() : null }), file, uploaded: false, running: false };

@@ -79,7 +79,12 @@ def test_websocket_survives_database_outage():
                 headers={"Authorization": "Bearer test-admin"},
             )
             # DB가 멈춰 있어도 연결은 유지되고 상태 변경은 전달된다.
-            assert ws.receive_json() == {"type": "status", "env": "onprem", "write_blocked": True}
+            assert ws.receive_json() == {
+                "type": "status",
+                "env": "onprem",
+                "write_blocked": True,
+                "attachment_upload_enabled": True,
+            }
 
 
 def test_credentials_are_cached_and_refreshed():

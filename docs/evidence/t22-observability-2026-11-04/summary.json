@@ -1,0 +1,183 @@
+{
+  "scope": "actual local app/PostgreSQL/OTel/T36 HTTP; Nginx Edge substitute; shared DB; moto AWS APIs; not cloud migration",
+  "status": "PASS",
+  "checks": {
+    "collector_requires_client_certificate": true,
+    "source_writes_reconciled": true,
+    "source_header_attribution": true,
+    "target_writes_reconciled": true,
+    "target_header_attribution": true,
+    "actual_http_histogram": true,
+    "no_metric_sensitive_labels": true,
+    "both_environments": true,
+    "window_http_received": true,
+    "bad_intake_token_rejected": true,
+    "replayed_window_rejected": true,
+    "zero_errors_visible": true,
+    "websocket_switch_verified": true,
+    "collector_stop_not_zero": true,
+    "source_still_observed": true
+  },
+  "websocket_checks": {
+    "source_header_single": true,
+    "source_hello": true,
+    "unauth_close_rejected": true,
+    "unfenced_close_rejected": true,
+    "write_blocked_retry_after": true,
+    "exact_process_close_count": true,
+    "received_1012": true,
+    "target_hello": true,
+    "target_header_single": true,
+    "idempotent_retry_same_id": true,
+    "cursor_no_old_or_duplicate": true,
+    "exactly_one_database_row": true
+  },
+  "owned_compose_removed": true,
+  "sources": {
+    "t18_commit": "dea9ced667ead5c2d3b52c1e37723ace61e8e97d",
+    "t36_commit": "b137d898bc998169bfdab08f5b34ef52ecbeb7c0",
+    "t37_commit": "d73964aa005f31d16b8e1bf39165550f3bb34190",
+    "demo_commit": "87f6a210c97bc8bf6c410196bfa5236b86ffd069"
+  },
+  "runs": {
+    "source": {
+      "requests": {
+        "write": {
+          "attempts": 1500,
+          "http_5xx": 0,
+          "http_4xx": 0,
+          "timeout": 0,
+          "connect": 0,
+          "p95_ms": 10.246
+        },
+        "read": {
+          "attempts": 4500,
+          "http_5xx": 0,
+          "http_4xx": 0,
+          "timeout": 0,
+          "connect": 0,
+          "p95_ms": 5.899
+        }
+      },
+      "windows": {
+        "emitted": 3,
+        "requests_in_windows": 6000,
+        "tail_requests_not_in_a_window": 0,
+        "late_requests": 0,
+        "conserved": true,
+        "delivery_failed": 0,
+        "invalid": 0,
+        "continuity_problems": [],
+        "pools_total": {
+          "source": 6000,
+          "target": 0
+        },
+        "unattributed_total": {
+          "timeout": 0,
+          "connect": 0,
+          "other": 0
+        }
+      }
+    },
+    "target": {
+      "requests": {
+        "write": {
+          "attempts": 1500,
+          "http_5xx": 0,
+          "http_4xx": 0,
+          "timeout": 0,
+          "connect": 0,
+          "p95_ms": 137.292
+        },
+        "read": {
+          "attempts": 4500,
+          "http_5xx": 0,
+          "http_4xx": 0,
+          "timeout": 0,
+          "connect": 0,
+          "p95_ms": 132.368
+        }
+      },
+      "windows": {
+        "emitted": 3,
+        "requests_in_windows": 6000,
+        "tail_requests_not_in_a_window": 0,
+        "late_requests": 0,
+        "conserved": true,
+        "delivery_failed": 0,
+        "invalid": 0,
+        "continuity_problems": [],
+        "pools_total": {
+          "source": 0,
+          "target": 6000
+        },
+        "unattributed_total": {
+          "timeout": 0,
+          "connect": 0,
+          "other": 0
+        }
+      }
+    }
+  },
+  "observed_http": {
+    "aws": {
+      "queried_at": "2026-11-04T00:12:16Z",
+      "environment": "aws",
+      "window": "1m",
+      "state": "OK",
+      "last_received_seconds_ago": 8.6,
+      "requests_per_second": 83.88591515538866,
+      "error_ratio": 0.0,
+      "p95_seconds": 0.004905335628227194
+    },
+    "onprem": {
+      "queried_at": "2026-11-04T00:12:16Z",
+      "environment": "onprem",
+      "window": "1m",
+      "state": "OK",
+      "last_received_seconds_ago": 4.7,
+      "requests_per_second": 92.78154732150296,
+      "error_ratio": 0.0,
+      "p95_seconds": 0.004991085372201979
+    }
+  },
+  "after_collector_stop": {
+    "aws": {
+      "queried_at": "2026-11-04T00:12:59Z",
+      "environment": "aws",
+      "window": "1m",
+      "state": "OK",
+      "last_received_seconds_ago": 1.9,
+      "requests_per_second": 0.6845055044617058,
+      "error_ratio": 0.0,
+      "p95_seconds": 0.004892660560268682
+    },
+    "onprem": {
+      "queried_at": "2026-11-04T00:12:59Z",
+      "environment": "onprem",
+      "window": "1m",
+      "state": "UNOBSERVABLE",
+      "last_received_seconds_ago": 48.0,
+      "requests_per_second": null,
+      "error_ratio": null,
+      "p95_seconds": null
+    }
+  },
+  "sli": {
+    "profile": {
+      "id": "demo-shift",
+      "version": "1"
+    },
+    "verdict": "PASS",
+    "reasons": [],
+    "action": "ADVANCE_ALLOWED"
+  },
+  "app_source_sha256": {
+    "app/main.py": "fe14d9fed9033be85f990ef9a75a3944432a318e621a9a8f1cf762f58c9928c9",
+    "app/environment.py": "5d9914c8cacb2c8bc0ae297e6d00421f4b188e2cb2a1db784612174b3960e70f",
+    "app/metrics.py": "c77cd0ba2bf3de5fc47e13c91b1ca8b2e7eeb1842aa96ccac2f453035ea53e81",
+    "pyproject.toml": "e7b2e3971cf3501bfd9a3007b33e2f533187a5f28222d2bc0cefe90c05564d32",
+    "uv.lock": "4bc05a1dabc865d8ce8b195de20d028cbf6252bcf51ad8851de81b57b4d55a94"
+  },
+  "raw_result_sha256": "a7af3046ea0d127bc36af5e9d6c8cd75c7786839a33c5656cfb62ef06c213d29"
+}
