@@ -40,9 +40,11 @@ test('write pause retains the same request until acknowledged exactly once', asy
 });
 
 test('queued write and missed messages survive pause plus same-address switch together', async ({ page, request }) => {
-  await page.locator('#body').fill('전환 전 저장'); await page.locator('#send').click();
+  // Seed through another participant: this browser can display the row only
+  // after receiving it on WebSocket. A local POST acknowledgement renders first
+  // and does not prove that the resume cursor has advanced to 1 yet.
+  expect((await request.post('/api/messages', { data: message('전환 전 저장') })).status()).toBe(201);
   await expect(page.locator('#log .msg')).toHaveCount(1);
-  await expect(page.locator('#outbox')).toBeHidden();
   const originalAddress = page.url(), payloads = [], sockets = [];
   page.on('request', (req) => {
     if (new URL(req.url()).pathname === '/api/messages' && req.method() === 'POST') payloads.push(req.postData());
