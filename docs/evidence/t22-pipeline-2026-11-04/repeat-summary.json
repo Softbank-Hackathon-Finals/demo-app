@@ -1,0 +1,496 @@
+{
+  "status": "NOT_QUALIFIED",
+  "tested_commit": "ebe37e52ac7f4ef5ee72ab756c60b16d34875796",
+  "scope": "local PG16 PgBouncer transaction mode; synthetic network delay; same app; 30 seconds x 4 cells per set",
+  "change": "diagnostic copy changed only mock-edge upstream DNS name to observed local IPv4 host gateway; no production change",
+  "initial_harness_failure": "first diagnostic copy omitted relative repository layout and failed before workload; retained separately",
+  "measurements": [
+    {
+      "kind": "default-edge-repeat",
+      "raw_sha256": "b97874a63f8e697d0ce6f4c83346d712438cd9e97c14b2d37322fec4ca28e503",
+      "cells": [
+        {
+          "rep": 1,
+          "rtt_ms": 20.0,
+          "target_percent": 50,
+          "path": "pgbouncer",
+          "judge": [
+            "PASS",
+            "PASS",
+            "PASS"
+          ],
+          "judge_reasons": {},
+          "nfr2": {
+            "failed": 0,
+            "lost": 0,
+            "duplicated": 0
+          },
+          "logical_writes": 1500,
+          "write": {
+            "attempts": 1500,
+            "http_5xx": 0,
+            "http_4xx": 0,
+            "timeout": 0,
+            "connect": 0,
+            "p95_ms": 31.024
+          },
+          "read": {
+            "attempts": 4500,
+            "http_5xx": 0,
+            "http_4xx": 0,
+            "timeout": 0,
+            "connect": 0,
+            "p95_ms": 29.827
+          },
+          "unattributed": {
+            "timeout": 0,
+            "connect": 0,
+            "other": 0
+          },
+          "effective_rtt_ms": {
+            "samples": 151,
+            "p50_ms": 21.51,
+            "p95_ms": 25.686,
+            "max_ms": 37.196
+          },
+          "lock_wait_ms": {
+            "p50": 0.002,
+            "p95": 0.005,
+            "p99": 0.539,
+            "max": 0.558
+          },
+          "lock_waiters_max": 0,
+          "app_errors": {
+            "source": {},
+            "target": {}
+          },
+          "edge_errors": {
+            "connect() to <ipv6> failed (101: Network unreachable)": 30
+          }
+        },
+        {
+          "rep": 1,
+          "rtt_ms": 40.0,
+          "target_percent": 50,
+          "path": "pgbouncer",
+          "judge": [
+            "FAIL",
+            "FAIL",
+            "FAIL",
+            "FAIL"
+          ],
+          "judge_reasons": {
+            "P95": 4,
+            "ERROR_RATE": 2
+          },
+          "nfr2": {
+            "failed": 0,
+            "lost": 0,
+            "duplicated": 0
+          },
+          "logical_writes": 1500,
+          "write": {
+            "attempts": 1686,
+            "http_5xx": 0,
+            "http_4xx": 0,
+            "timeout": 186,
+            "connect": 0,
+            "p95_ms": 15040.466
+          },
+          "read": {
+            "attempts": 4500,
+            "http_5xx": 0,
+            "http_4xx": 0,
+            "timeout": 516,
+            "connect": 0,
+            "p95_ms": 15072.074
+          },
+          "unattributed": {
+            "timeout": 701,
+            "connect": 0,
+            "other": 0
+          },
+          "effective_rtt_ms": {
+            "samples": 194,
+            "p50_ms": 42.032,
+            "p95_ms": 47.688,
+            "max_ms": 170.961
+          },
+          "lock_wait_ms": {
+            "p50": 0.002,
+            "p95": 0.012,
+            "p99": 0.318,
+            "max": 0.662
+          },
+          "lock_waiters_max": 0,
+          "app_errors": {
+            "source": {},
+            "target": {}
+          },
+          "edge_errors": {
+            "connect() to <ipv6> failed (101: Network unreachable)": 63
+          }
+        },
+        {
+          "rep": 2,
+          "rtt_ms": 20.0,
+          "target_percent": 50,
+          "path": "pgbouncer",
+          "judge": [
+            "PASS",
+            "PASS",
+            "PASS"
+          ],
+          "judge_reasons": {},
+          "nfr2": {
+            "failed": 0,
+            "lost": 0,
+            "duplicated": 0
+          },
+          "logical_writes": 1500,
+          "write": {
+            "attempts": 1500,
+            "http_5xx": 0,
+            "http_4xx": 0,
+            "timeout": 0,
+            "connect": 0,
+            "p95_ms": 29.887
+          },
+          "read": {
+            "attempts": 4500,
+            "http_5xx": 0,
+            "http_4xx": 0,
+            "timeout": 0,
+            "connect": 0,
+            "p95_ms": 28.055
+          },
+          "unattributed": {
+            "timeout": 0,
+            "connect": 0,
+            "other": 0
+          },
+          "effective_rtt_ms": {
+            "samples": 151,
+            "p50_ms": 21.38,
+            "p95_ms": 26.728,
+            "max_ms": 84.168
+          },
+          "lock_wait_ms": {
+            "p50": 0.002,
+            "p95": 0.003,
+            "p99": 0.306,
+            "max": 0.397
+          },
+          "lock_waiters_max": 0,
+          "app_errors": {
+            "source": {},
+            "target": {}
+          },
+          "edge_errors": {
+            "connect() to <ipv6> failed (101: Network unreachable)": 32
+          }
+        },
+        {
+          "rep": 2,
+          "rtt_ms": 40.0,
+          "target_percent": 50,
+          "path": "pgbouncer",
+          "judge": [
+            "FAIL",
+            "FAIL",
+            "FAIL",
+            "FAIL"
+          ],
+          "judge_reasons": {
+            "P95": 4,
+            "ERROR_RATE": 3
+          },
+          "nfr2": {
+            "failed": 0,
+            "lost": 0,
+            "duplicated": 0
+          },
+          "logical_writes": 1500,
+          "write": {
+            "attempts": 1724,
+            "http_5xx": 0,
+            "http_4xx": 0,
+            "timeout": 224,
+            "connect": 0,
+            "p95_ms": 15039.312
+          },
+          "read": {
+            "attempts": 4500,
+            "http_5xx": 0,
+            "http_4xx": 0,
+            "timeout": 675,
+            "connect": 0,
+            "p95_ms": 15053.469
+          },
+          "unattributed": {
+            "timeout": 896,
+            "connect": 0,
+            "other": 0
+          },
+          "effective_rtt_ms": {
+            "samples": 183,
+            "p50_ms": 42.03,
+            "p95_ms": 47.044,
+            "max_ms": 147.696
+          },
+          "lock_wait_ms": {
+            "p50": 0.002,
+            "p95": 0.009,
+            "p99": 0.396,
+            "max": 0.489
+          },
+          "lock_waiters_max": 0,
+          "app_errors": {
+            "source": {},
+            "target": {}
+          },
+          "edge_errors": {
+            "connect() to <ipv6> failed (101: Network unreachable)": 62
+          }
+        }
+      ]
+    },
+    {
+      "kind": "ipv4-edge-diagnostic",
+      "raw_sha256": "847269b1d0c9f0cd1237b43184e89396a65fc73d270ef0b7b3c7e824dac18fa0",
+      "cells": [
+        {
+          "rep": 1,
+          "rtt_ms": 20.0,
+          "target_percent": 50,
+          "path": "pgbouncer",
+          "judge": [
+            "PASS",
+            "PASS",
+            "PASS"
+          ],
+          "judge_reasons": {},
+          "nfr2": {
+            "failed": 0,
+            "lost": 0,
+            "duplicated": 0
+          },
+          "logical_writes": 1500,
+          "write": {
+            "attempts": 1500,
+            "http_5xx": 0,
+            "http_4xx": 0,
+            "timeout": 0,
+            "connect": 0,
+            "p95_ms": 27.686
+          },
+          "read": {
+            "attempts": 4500,
+            "http_5xx": 0,
+            "http_4xx": 0,
+            "timeout": 0,
+            "connect": 0,
+            "p95_ms": 25.872
+          },
+          "unattributed": {
+            "timeout": 0,
+            "connect": 0,
+            "other": 0
+          },
+          "effective_rtt_ms": {
+            "samples": 152,
+            "p50_ms": 21.192,
+            "p95_ms": 24.246,
+            "max_ms": 55.963
+          },
+          "lock_wait_ms": {
+            "p50": 0.002,
+            "p95": 0.003,
+            "p99": 0.312,
+            "max": 0.517
+          },
+          "lock_waiters_max": 0,
+          "app_errors": {
+            "source": {},
+            "target": {}
+          },
+          "edge_errors": {}
+        },
+        {
+          "rep": 1,
+          "rtt_ms": 40.0,
+          "target_percent": 50,
+          "path": "pgbouncer",
+          "judge": [
+            "PASS",
+            "PASS",
+            "PASS"
+          ],
+          "judge_reasons": {},
+          "nfr2": {
+            "failed": 0,
+            "lost": 0,
+            "duplicated": 0
+          },
+          "logical_writes": 1500,
+          "write": {
+            "attempts": 1500,
+            "http_5xx": 0,
+            "http_4xx": 0,
+            "timeout": 0,
+            "connect": 0,
+            "p95_ms": 50.661
+          },
+          "read": {
+            "attempts": 4500,
+            "http_5xx": 0,
+            "http_4xx": 0,
+            "timeout": 0,
+            "connect": 0,
+            "p95_ms": 49.088
+          },
+          "unattributed": {
+            "timeout": 0,
+            "connect": 0,
+            "other": 0
+          },
+          "effective_rtt_ms": {
+            "samples": 139,
+            "p50_ms": 41.197,
+            "p95_ms": 44.811,
+            "max_ms": 46.248
+          },
+          "lock_wait_ms": {
+            "p50": 0.002,
+            "p95": 0.004,
+            "p99": 0.419,
+            "max": 11.287
+          },
+          "lock_waiters_max": 1,
+          "app_errors": {
+            "source": {},
+            "target": {}
+          },
+          "edge_errors": {}
+        },
+        {
+          "rep": 2,
+          "rtt_ms": 20.0,
+          "target_percent": 50,
+          "path": "pgbouncer",
+          "judge": [
+            "PASS",
+            "PASS",
+            "PASS"
+          ],
+          "judge_reasons": {},
+          "nfr2": {
+            "failed": 0,
+            "lost": 0,
+            "duplicated": 0
+          },
+          "logical_writes": 1500,
+          "write": {
+            "attempts": 1500,
+            "http_5xx": 0,
+            "http_4xx": 0,
+            "timeout": 0,
+            "connect": 0,
+            "p95_ms": 28.273
+          },
+          "read": {
+            "attempts": 4500,
+            "http_5xx": 0,
+            "http_4xx": 0,
+            "timeout": 0,
+            "connect": 0,
+            "p95_ms": 26.341
+          },
+          "unattributed": {
+            "timeout": 0,
+            "connect": 0,
+            "other": 0
+          },
+          "effective_rtt_ms": {
+            "samples": 152,
+            "p50_ms": 21.179,
+            "p95_ms": 24.639,
+            "max_ms": 33.291
+          },
+          "lock_wait_ms": {
+            "p50": 0.001,
+            "p95": 0.015,
+            "p99": 0.402,
+            "max": 0.416
+          },
+          "lock_waiters_max": 0,
+          "app_errors": {
+            "source": {},
+            "target": {}
+          },
+          "edge_errors": {}
+        },
+        {
+          "rep": 2,
+          "rtt_ms": 40.0,
+          "target_percent": 50,
+          "path": "pgbouncer",
+          "judge": [
+            "FAIL",
+            "PASS",
+            "PASS"
+          ],
+          "judge_reasons": {
+            "P95": 1
+          },
+          "nfr2": {
+            "failed": 0,
+            "lost": 0,
+            "duplicated": 0
+          },
+          "logical_writes": 1500,
+          "write": {
+            "attempts": 1500,
+            "http_5xx": 0,
+            "http_4xx": 0,
+            "timeout": 0,
+            "connect": 0,
+            "p95_ms": 637.229
+          },
+          "read": {
+            "attempts": 4500,
+            "http_5xx": 0,
+            "http_4xx": 0,
+            "timeout": 0,
+            "connect": 0,
+            "p95_ms": 678.017
+          },
+          "unattributed": {
+            "timeout": 0,
+            "connect": 0,
+            "other": 0
+          },
+          "effective_rtt_ms": {
+            "samples": 139,
+            "p50_ms": 41.135,
+            "p95_ms": 45.042,
+            "max_ms": 104.132
+          },
+          "lock_wait_ms": {
+            "p50": 0.001,
+            "p95": 0.003,
+            "p99": 0.452,
+            "max": 0.885
+          },
+          "lock_waiters_max": 1,
+          "app_errors": {
+            "source": {},
+            "target": {}
+          },
+          "edge_errors": {}
+        }
+      ]
+    }
+  ],
+  "conclusion": "Default edge40ms repeatedly ~15s p95. IPv4 removed that symptom in these repetitions, but a40ms diagnostic window still failed P95. IPv6 fallback is a contributing-path hypothesis, not a proven sole root cause or production qualification."
+}
