@@ -1,0 +1,23 @@
+{
+  "workflow_run": "https://github.com/Softbank-Hackathon-Finals/demo-chat/actions/runs/41663726176",
+  "workflow_commit": "66e7419f404f4ec4addc71014aabfcdd44f34688",
+  "workflow_conclusion": "success",
+  "scan_before_publish": true,
+  "scanners": [
+    "vuln",
+    "secret"
+  ],
+  "severity": [
+    "HIGH",
+    "CRITICAL"
+  ],
+  "ignore_unfixed": true,
+  "vulnerability_count": 0,
+  "secret_match_count": 0,
+  "detected_package_types": [
+    "debian",
+    "python-pkg"
+  ],
+  "source_fix_pr": "https://github.com/Softbank-Hackathon-Finals/demo-chat/pull/12",
+  "trigger": "workflow_dispatch"
+}

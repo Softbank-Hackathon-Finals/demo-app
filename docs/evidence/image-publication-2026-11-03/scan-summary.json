@@ -1,6 +1,6 @@
 {
-  "workflow_run": "https://github.com/Softbank-Hackathon-Finals/demo-chat/actions/runs/41663726176",
-  "workflow_commit": "66e7419f404f4ec4addc71014aabfcdd44f34688",
+  "workflow_run": "https://github.com/Softbank-Hackathon-Finals/demo-chat/actions/runs/41803312129",
+  "workflow_commit": "8d82a9241d3894737778a77d58349e1aee54eca1",
   "workflow_conclusion": "success",
   "scan_before_publish": true,
   "scanners": [
@@ -18,6 +18,10 @@
     "debian",
     "python-pkg"
   ],
-  "source_fix_pr": "https://github.com/Softbank-Hackathon-Finals/demo-chat/pull/12",
-  "trigger": "workflow_dispatch"
+  "source_fix_prs": [
+    "https://github.com/Softbank-Hackathon-Finals/demo-chat/pull/15",
+    "https://github.com/Softbank-Hackathon-Finals/demo-chat/pull/17"
+  ],
+  "trigger": "workflow_dispatch",
+  "raw_scan_sha256": "fb666f3ead8f9a24d146c991a636e54afe8ee6f4cb42a453fbb067e8f03a4fd3"
 }
