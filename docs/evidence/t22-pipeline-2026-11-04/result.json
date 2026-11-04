@@ -1,0 +1,682 @@
+{
+  "kind": "selected_field_summary",
+  "public_is_raw": false,
+  "tested_commit": "ebe37e52ac7f4ef5ee72ab756c60b16d34875796",
+  "invariants_raw_sha256": "b00318a9a6fdfeb63319bddc25a6c0bc444dfc6c8a6dff77f894dc7593193e04",
+  "scope": "local PG18.4 direct and PgBouncer; PG16 load matrix with artificial RTT; no TLS/real cloud/Cloudflare qualification",
+  "invariants": [
+    {
+      "variant": "candidate",
+      "image": "pg18",
+      "path": "direct",
+      "checks": 29,
+      "failed": [],
+      "checks_detail": [
+        {
+          "invariant": "idempotent",
+          "check": "새 쓰기는 생성, 같은 키 재전송은 기존 메시지",
+          "ok": true,
+          "actual": [
+            true,
+            false
+          ]
+        },
+        {
+          "invariant": "idempotent",
+          "check": "재전송이 같은 행을 돌려줌",
+          "ok": true,
+          "actual": true
+        },
+        {
+          "invariant": "idempotent",
+          "check": "응답 필드가 원본과 같음",
+          "ok": true,
+          "actual": [
+            "attachment_id",
+            "attachment_name",
+            "attachment_size",
+            "attachment_type",
+            "author",
+            "body",
+            "created_at",
+            "id"
+          ]
+        },
+        {
+          "invariant": "idempotent",
+          "check": "같은 키에 다른 내용이면 충돌",
+          "ok": true,
+          "actual": [
+            "conflict",
+            "conflict",
+            "conflict"
+          ]
+        },
+        {
+          "invariant": "idempotent",
+          "check": "동시 같은 키 20건: 생성 1, 행 1, id 1",
+          "ok": true,
+          "actual": [
+            1,
+            1,
+            1
+          ]
+        },
+        {
+          "invariant": "idempotent",
+          "check": "내용이 다른 동시 재전송: 생성 1, 충돌 5, 다른 예외 0",
+          "ok": true,
+          "actual": [
+            1,
+            5,
+            []
+          ]
+        },
+        {
+          "invariant": "attachment",
+          "check": "없는 첨부는 UnknownAttachment",
+          "ok": true,
+          "actual": "unknown_attachment"
+        },
+        {
+          "invariant": "attachment",
+          "check": "실패한 쓰기의 행이 남지 않음",
+          "ok": true,
+          "actual": 0
+        },
+        {
+          "invariant": "attachment",
+          "check": "실패 뒤 잠금이 남지 않음",
+          "ok": true,
+          "actual": 0
+        },
+        {
+          "invariant": "attachment",
+          "check": "같은 연결 · 같은 키로 다시 보내면 정상 저장",
+          "ok": true,
+          "actual": true
+        },
+        {
+          "invariant": "attachment",
+          "check": "있는 첨부는 이름 · 형식 · 크기가 응답에 실림",
+          "ok": true,
+          "actual": [
+            "a.png",
+            "image/png",
+            3
+          ]
+        },
+        {
+          "invariant": "attachment",
+          "check": "첨부 있는 메시지의 재전송도 같은 응답",
+          "ok": true,
+          "actual": "a.png"
+        },
+        {
+          "invariant": "timeout",
+          "check": "잠금 대기 초과는 OperationalError(앱이 503으로 바꾼다)",
+          "ok": true,
+          "actual": "QueryCanceled"
+        },
+        {
+          "invariant": "timeout",
+          "check": "정해진 시간 안에 포기 (< 660.0ms)",
+          "ok": true,
+          "actual": 202.0
+        },
+        {
+          "invariant": "timeout",
+          "check": "잠금이 풀리면 같은 키로 저장",
+          "ok": true,
+          "actual": true
+        },
+        {
+          "invariant": "timeout",
+          "check": "같은 키 대기도 시간 안에 포기",
+          "ok": true,
+          "actual": [
+            "QueryCanceled",
+            203.8
+          ]
+        },
+        {
+          "invariant": "session",
+          "check": "쓰기 뒤 statement_timeout · lock_timeout이 세션에 남지 않음",
+          "ok": true,
+          "actual": [
+            "0",
+            "0"
+          ]
+        },
+        {
+          "invariant": "session",
+          "check": "연결의 자동 커밋 설정이 원래대로 돌아옴",
+          "ok": true,
+          "actual": false
+        },
+        {
+          "invariant": "order",
+          "check": "쓰기가 모두 저장됨",
+          "ok": true,
+          "actual": {
+            "rows": 600,
+            "timeouts_retried": 0
+          }
+        },
+        {
+          "invariant": "order",
+          "check": "논리 디코딩에 모든 행이 나옴",
+          "ok": true,
+          "actual": [
+            600,
+            600
+          ]
+        },
+        {
+          "invariant": "order",
+          "check": "커밋 순서와 id 순서 일치 (뒤집힘 0)",
+          "ok": true,
+          "actual": 0
+        },
+        {
+          "invariant": "skip",
+          "check": "4개 조회 모두 건너뛴 메시지 0",
+          "ok": true,
+          "actual": [
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "invariant": "skip",
+          "check": "4개 조회 모두 id 오름차순",
+          "ok": true,
+          "actual": true
+        },
+        {
+          "invariant": "connection-loss",
+          "check": "연결이 실제로 끊김",
+          "ok": true,
+          "actual": {
+            "OperationalError": 16
+          }
+        },
+        {
+          "invariant": "connection-loss",
+          "check": "커밋 뒤 응답 유실이 실제로 일어남 (재시도가 저장된 행을 돌려받음)",
+          "ok": true,
+          "actual": 16
+        },
+        {
+          "invariant": "connection-loss",
+          "check": "끊겨도 500이 될 예외 없음",
+          "ok": true,
+          "actual": {}
+        },
+        {
+          "invariant": "connection-loss",
+          "check": "재시도로 전부 확인",
+          "ok": true,
+          "actual": 120
+        },
+        {
+          "invariant": "connection-loss",
+          "check": "키마다 정확히 한 행",
+          "ok": true,
+          "actual": [
+            120,
+            120
+          ]
+        },
+        {
+          "invariant": "connection-loss",
+          "check": "끊긴 뒤 잠금이 남지 않음",
+          "ok": true,
+          "actual": 0
+        }
+      ],
+      "demo_chat_pytest": {
+        "returncode": 0,
+        "summary": "31 passed, 1 warning in 4.96s"
+      }
+    },
+    {
+      "variant": "candidate",
+      "image": "pg18",
+      "path": "pgbouncer",
+      "checks": 29,
+      "failed": [],
+      "checks_detail": [
+        {
+          "invariant": "idempotent",
+          "check": "새 쓰기는 생성, 같은 키 재전송은 기존 메시지",
+          "ok": true,
+          "actual": [
+            true,
+            false
+          ]
+        },
+        {
+          "invariant": "idempotent",
+          "check": "재전송이 같은 행을 돌려줌",
+          "ok": true,
+          "actual": true
+        },
+        {
+          "invariant": "idempotent",
+          "check": "응답 필드가 원본과 같음",
+          "ok": true,
+          "actual": [
+            "attachment_id",
+            "attachment_name",
+            "attachment_size",
+            "attachment_type",
+            "author",
+            "body",
+            "created_at",
+            "id"
+          ]
+        },
+        {
+          "invariant": "idempotent",
+          "check": "같은 키에 다른 내용이면 충돌",
+          "ok": true,
+          "actual": [
+            "conflict",
+            "conflict",
+            "conflict"
+          ]
+        },
+        {
+          "invariant": "idempotent",
+          "check": "동시 같은 키 20건: 생성 1, 행 1, id 1",
+          "ok": true,
+          "actual": [
+            1,
+            1,
+            1
+          ]
+        },
+        {
+          "invariant": "idempotent",
+          "check": "내용이 다른 동시 재전송: 생성 1, 충돌 5, 다른 예외 0",
+          "ok": true,
+          "actual": [
+            1,
+            5,
+            []
+          ]
+        },
+        {
+          "invariant": "attachment",
+          "check": "없는 첨부는 UnknownAttachment",
+          "ok": true,
+          "actual": "unknown_attachment"
+        },
+        {
+          "invariant": "attachment",
+          "check": "실패한 쓰기의 행이 남지 않음",
+          "ok": true,
+          "actual": 0
+        },
+        {
+          "invariant": "attachment",
+          "check": "실패 뒤 잠금이 남지 않음",
+          "ok": true,
+          "actual": 0
+        },
+        {
+          "invariant": "attachment",
+          "check": "같은 연결 · 같은 키로 다시 보내면 정상 저장",
+          "ok": true,
+          "actual": true
+        },
+        {
+          "invariant": "attachment",
+          "check": "있는 첨부는 이름 · 형식 · 크기가 응답에 실림",
+          "ok": true,
+          "actual": [
+            "a.png",
+            "image/png",
+            3
+          ]
+        },
+        {
+          "invariant": "attachment",
+          "check": "첨부 있는 메시지의 재전송도 같은 응답",
+          "ok": true,
+          "actual": "a.png"
+        },
+        {
+          "invariant": "timeout",
+          "check": "잠금 대기 초과는 OperationalError(앱이 503으로 바꾼다)",
+          "ok": true,
+          "actual": "QueryCanceled"
+        },
+        {
+          "invariant": "timeout",
+          "check": "정해진 시간 안에 포기 (< 660.0ms)",
+          "ok": true,
+          "actual": 203.4
+        },
+        {
+          "invariant": "timeout",
+          "check": "잠금이 풀리면 같은 키로 저장",
+          "ok": true,
+          "actual": true
+        },
+        {
+          "invariant": "timeout",
+          "check": "같은 키 대기도 시간 안에 포기",
+          "ok": true,
+          "actual": [
+            "QueryCanceled",
+            208.8
+          ]
+        },
+        {
+          "invariant": "session",
+          "check": "쓰기 뒤 statement_timeout · lock_timeout이 세션에 남지 않음",
+          "ok": true,
+          "actual": [
+            "0",
+            "0"
+          ]
+        },
+        {
+          "invariant": "session",
+          "check": "연결의 자동 커밋 설정이 원래대로 돌아옴",
+          "ok": true,
+          "actual": false
+        },
+        {
+          "invariant": "order",
+          "check": "쓰기가 모두 저장됨",
+          "ok": true,
+          "actual": {
+            "rows": 600,
+            "timeouts_retried": 0
+          }
+        },
+        {
+          "invariant": "order",
+          "check": "논리 디코딩에 모든 행이 나옴",
+          "ok": true,
+          "actual": [
+            600,
+            600
+          ]
+        },
+        {
+          "invariant": "order",
+          "check": "커밋 순서와 id 순서 일치 (뒤집힘 0)",
+          "ok": true,
+          "actual": 0
+        },
+        {
+          "invariant": "skip",
+          "check": "4개 조회 모두 건너뛴 메시지 0",
+          "ok": true,
+          "actual": [
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "invariant": "skip",
+          "check": "4개 조회 모두 id 오름차순",
+          "ok": true,
+          "actual": true
+        },
+        {
+          "invariant": "connection-loss",
+          "check": "연결이 실제로 끊김",
+          "ok": true,
+          "actual": {
+            "OperationalError": 16
+          }
+        },
+        {
+          "invariant": "connection-loss",
+          "check": "커밋 뒤 응답 유실이 실제로 일어남 (재시도가 저장된 행을 돌려받음)",
+          "ok": true,
+          "actual": 16
+        },
+        {
+          "invariant": "connection-loss",
+          "check": "끊겨도 500이 될 예외 없음",
+          "ok": true,
+          "actual": {}
+        },
+        {
+          "invariant": "connection-loss",
+          "check": "재시도로 전부 확인",
+          "ok": true,
+          "actual": 120
+        },
+        {
+          "invariant": "connection-loss",
+          "check": "키마다 정확히 한 행",
+          "ok": true,
+          "actual": [
+            120,
+            120
+          ]
+        },
+        {
+          "invariant": "connection-loss",
+          "check": "끊긴 뒤 잠금이 남지 않음",
+          "ok": true,
+          "actual": 0
+        }
+      ],
+      "demo_chat_pytest": null
+    }
+  ],
+  "matrix_raw_sha256": "1541a086688126d647bd98e14c1b5e8a30a5f07f4a70a62d7098914a8c85f85c",
+  "matrix": [
+    {
+      "variant": "baseline",
+      "rtt_ms": 20.0,
+      "write": {
+        "attempts": 3022,
+        "http_5xx": 1522,
+        "http_4xx": 0,
+        "timeout": 0,
+        "connect": 0,
+        "p95_ms": 5341.27
+      },
+      "read": {
+        "attempts": 4500,
+        "http_5xx": 616,
+        "http_4xx": 0,
+        "timeout": 0,
+        "connect": 0,
+        "p95_ms": 5077.413
+      },
+      "nfr2": {
+        "failed": 0,
+        "lost": 0,
+        "duplicated": 0
+      },
+      "warnings": [
+        "NOT_EDGE_MEASURED",
+        "ENV_HEADER_UNREGISTERED",
+        "HTTP_ERRORS"
+      ],
+      "judge": [
+        "FAIL",
+        "FAIL",
+        "FAIL",
+        "FAIL"
+      ],
+      "judge_reasons": {
+        "ERROR_RATE": 4,
+        "INSUFFICIENT_SAMPLES": 4,
+        "NOT_APPLIED": 4
+      },
+      "effective_rtt_ms": {
+        "samples": 235,
+        "p50_ms": 21.605,
+        "p95_ms": 26.386,
+        "max_ms": 70.959
+      },
+      "edge_errors": {
+        "connect() to <ipv6> failed (101: Network unreachable)": 70
+      }
+    },
+    {
+      "variant": "baseline",
+      "rtt_ms": 40.0,
+      "write": {
+        "attempts": 5964,
+        "http_5xx": 4490,
+        "http_4xx": 0,
+        "timeout": 29,
+        "connect": 0,
+        "p95_ms": 5489.115
+      },
+      "read": {
+        "attempts": 4500,
+        "http_5xx": 1276,
+        "http_4xx": 0,
+        "timeout": 1,
+        "connect": 0,
+        "p95_ms": 5143.497
+      },
+      "nfr2": {
+        "failed": 55,
+        "lost": 0,
+        "duplicated": 0
+      },
+      "warnings": [
+        "NOT_EDGE_MEASURED",
+        "ENV_HEADER_UNREGISTERED",
+        "HTTP_ERRORS"
+      ],
+      "judge": [
+        "FAIL",
+        "FAIL",
+        "FAIL",
+        "FAIL",
+        "FAIL",
+        "FAIL",
+        "FAIL"
+      ],
+      "judge_reasons": {
+        "ERROR_RATE": 7,
+        "INSUFFICIENT_SAMPLES": 7,
+        "NOT_APPLIED": 7
+      },
+      "effective_rtt_ms": {
+        "samples": 336,
+        "p50_ms": 42.068,
+        "p95_ms": 45.732,
+        "max_ms": 139.119
+      },
+      "edge_errors": {
+        "connect() to <ipv6> failed (101: Network unreachable)": 104
+      }
+    },
+    {
+      "variant": "candidate",
+      "rtt_ms": 20.0,
+      "write": {
+        "attempts": 1500,
+        "http_5xx": 0,
+        "http_4xx": 0,
+        "timeout": 0,
+        "connect": 0,
+        "p95_ms": 1366.067
+      },
+      "read": {
+        "attempts": 4500,
+        "http_5xx": 0,
+        "http_4xx": 0,
+        "timeout": 0,
+        "connect": 0,
+        "p95_ms": 1390.484
+      },
+      "nfr2": {
+        "failed": 0,
+        "lost": 0,
+        "duplicated": 0
+      },
+      "warnings": [
+        "NOT_EDGE_MEASURED"
+      ],
+      "judge": [
+        "PASS",
+        "PASS",
+        "FAIL"
+      ],
+      "judge_reasons": {
+        "P95": 1
+      },
+      "effective_rtt_ms": {
+        "samples": 150,
+        "p50_ms": 21.486,
+        "p95_ms": 26.738,
+        "max_ms": 105.896
+      },
+      "edge_errors": {
+        "connect() to <ipv6> failed (101: Network unreachable)": 36
+      }
+    },
+    {
+      "variant": "candidate",
+      "rtt_ms": 40.0,
+      "write": {
+        "attempts": 1500,
+        "http_5xx": 0,
+        "http_4xx": 0,
+        "timeout": 0,
+        "connect": 0,
+        "p95_ms": 145.467
+      },
+      "read": {
+        "attempts": 4500,
+        "http_5xx": 0,
+        "http_4xx": 0,
+        "timeout": 0,
+        "connect": 0,
+        "p95_ms": 151.77
+      },
+      "nfr2": {
+        "failed": 0,
+        "lost": 0,
+        "duplicated": 0
+      },
+      "warnings": [
+        "NOT_EDGE_MEASURED"
+      ],
+      "judge": [
+        "PASS",
+        "PASS",
+        "PASS"
+      ],
+      "judge_reasons": {},
+      "effective_rtt_ms": {
+        "samples": 138,
+        "p50_ms": 41.484,
+        "p95_ms": 45.724,
+        "max_ms": 134.952
+      },
+      "edge_errors": {
+        "connect() to <ipv6> failed (101: Network unreachable)": 48
+      }
+    }
+  ],
+  "status": "INVARIANTS_PASS_PERFORMANCE_NOT_QUALIFIED",
+  "limits": [
+    "Candidate20ms has a P95 failure despite zero HTTP errors; root cause unconfirmed.",
+    "Candidate40ms passes this one short trial; not a general latency guarantee.",
+    "Baseline includes observation change while candidate does not; runtime dependency versions may differ; not a pure single-variable benchmark.",
+    "Mock Edge has IPv6 connection failures; no causal attribution made.",
+    "No Tailscale/TLS/PAUSE availability or complete cutover qualification."
+  ]
+}
