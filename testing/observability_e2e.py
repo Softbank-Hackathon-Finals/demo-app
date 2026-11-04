@@ -14,6 +14,7 @@ from pathlib import Path
 
 import httpx
 import websockets
+from load_checks import whole_run_checks
 
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument("--loadgen", type=Path, required=True, help="T18 services/loadgen directory")
@@ -426,6 +427,12 @@ try:
             result["checks"][name + "_header_attribution"] = (
                 sum(r.report["windows"]["unattributed_total"].values()) == 0
             )
+            result["checks"].update({
+                name + "_" + key: value
+                for key, value in whole_run_checks(
+                    r.report, duration=args.duration_per_environment
+                ).items()
+            })
             result[name + "_report"] = r.report
             result[name + "_windows"] = r.windows
             print(name + "_load_complete code=" + str(r.code), flush=True)
@@ -504,7 +511,9 @@ try:
             == 409
         )
         # Keep source app producing while destination Collector is stopped.
-        result["checks"]["zero_errors_visible"] = all(
+        # This is only the last display window. Whole-run checks above are
+        # separate so an earlier outage cannot be hidden by later recovery.
+        result["checks"]["final_display_window_zero_errors"] = all(
             v["error_ratio"] == 0 for v in result["http"].values()
         )
         result["websocket_switch"] = asyncio.run(websocket_switch(stack))
