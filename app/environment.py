@@ -1,6 +1,7 @@
 """Server-owned environment label on every app-generated HTTP response."""
 
 import re
+import time
 
 from fastapi import FastAPI
 from starlette.types import Message, Receive, Scope, Send
@@ -26,8 +27,13 @@ class EnvironmentFastAPI(FastAPI):
             await super().__call__(scope, receive, send)
             return
 
+        started = time.perf_counter()
+        status = 500
+
         async def send_with_environment(message: Message) -> None:
+            nonlocal status
             if message["type"] == "http.response.start":
+                status = message["status"]
                 headers = [
                     (name, value)
                     for name, value in message.get("headers", [])
@@ -37,4 +43,13 @@ class EnvironmentFastAPI(FastAPI):
                 message = {**message, "headers": headers}
             await send(message)
 
-        await super().__call__(scope, receive, send_with_environment)
+        try:
+            await super().__call__(scope, receive, send_with_environment)
+        finally:
+            metrics = getattr(self.state, "http_metrics", None)
+            if metrics is not None:
+                try:
+                    metrics.record(scope, status, time.perf_counter() - started)
+                except Exception:
+                    # Observability cannot fail or replace the business response.
+                    pass
