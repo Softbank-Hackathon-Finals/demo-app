@@ -38,7 +38,7 @@ def browser_app():
         raise RuntimeError("explicit test host opt-in required")
     store, storage = BrowserStore(), FakeStorage()
     apps = {}
-    for env in ("aws", "onprem"):
+    for env in ("aws", "onprem", "upload-blocked"):
         settings = Settings(
             app_env=env,
             db_host="unused",
@@ -50,6 +50,7 @@ def browser_app():
             s3_force_path_style=False,
             admin_token="browser-test-only",
             poll_interval=0.1,
+            attachment_upload_enabled=env != "upload-blocked",
         )
         apps[env] = create_app(settings, store, storage)
     selected = "aws"

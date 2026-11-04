@@ -118,3 +118,23 @@ test('message markup is text, and a rejected send stays visible for correction',
   await expect(page.locator('#outbox')).toContainText('남아 있어야 하는 메시지');
   await expect(page.getByRole('button', { name: '같은 요청 재시도' })).toBeHidden();
 });
+
+test('migration upload policy clears selection and blocks direct upload while chat continues', async ({ page, request }) => {
+  await page.locator('#file').setInputFiles({ name: 'pending.txt', mimeType: 'text/plain', buffer: Buffer.from('not uploaded') });
+  await expect(page.locator('#file-preview')).toBeVisible();
+  await request.post('/__test__/switch/upload-blocked');
+  await expect(page.locator('#file')).toBeDisabled();
+  await expect(page.locator('#upload-policy')).toContainText('새 첨부파일을 올릴 수 없습니다');
+  await expect(page.locator('#file-preview')).toBeHidden();
+  expect(await page.locator('#file').evaluate((input) => input.files.length)).toBe(0);
+  const direct = await request.put(`/api/attachments/${randomUUID()}`, {
+    multipart: { file: { name: 'bypass.txt', mimeType: 'text/plain', buffer: Buffer.from('bypass') } },
+  });
+  expect(direct.status()).toBe(403);
+  await page.locator('#body').fill('첨부 없이 계속 상담'); await page.locator('#send').click();
+  await expect(page.locator('#outbox')).toBeHidden();
+  await expect(page.locator('#log')).toContainText('첨부 없이 계속 상담');
+  await request.post('/__test__/switch/aws');
+  await expect(page.locator('#file')).toBeEnabled();
+  await expect(page.locator('#upload-policy')).toBeHidden();
+});
