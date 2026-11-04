@@ -26,7 +26,15 @@ parser.add_argument(
 parser.add_argument(
     "--output", type=Path, required=True, help="New private result directory; must not exist"
 )
+parser.add_argument(
+    "--duration-per-environment",
+    type=int,
+    default=30,
+    help="Seconds of 200 requests/s per environment; 30..1800, multiple of 10",
+)
 args = parser.parse_args()
+if not 30 <= args.duration_per_environment <= 1800 or args.duration_per_environment % 10:
+    parser.error("duration must be 30..1800 seconds and a multiple of 10")
 os.umask(0o077)
 ROOT = args.output.resolve()
 ROOT.mkdir(mode=0o700, parents=True, exist_ok=False)
@@ -78,7 +86,9 @@ def cmd(*args, timeout=120, data=None):
 # Refuse remote Docker contexts rather than creating trial resources there.
 docker_endpoint = env.get("DOCKER_HOST")
 if not docker_endpoint:
-    docker_endpoint = json.loads(cmd("docker", "context", "inspect"))[0]["Endpoints"]["docker"]["Host"]
+    docker_endpoint = json.loads(cmd("docker", "context", "inspect"))[0]["Endpoints"]["docker"][
+        "Host"
+    ]
 if not docker_endpoint.startswith("unix://"):
     raise SystemExit("local_unix_docker_endpoint_required")
 
@@ -294,6 +304,7 @@ result = {
     "scope": "actual local app/PostgreSQL/OTel/T36 HTTP; Nginx Edge substitute; shared DB; moto AWS APIs; not cloud migration",
     "status": "INCOMPLETE",
     "checks": {},
+    "load_seconds_per_environment": args.duration_per_environment,
 }
 process = None
 prom = None
@@ -363,15 +374,53 @@ try:
             result["checks"]["collector_requires_client_certificate"] = True
         # Positive app exports below prove the Collector is reachable and healthy.
 
-        h = Harness(stack, ROOT, 30)
+        h = Harness(stack, ROOT, args.duration_per_environment)
         for name, url in [("source", stack.source_url), ("target", stack.target_url)]:
+            other_url = stack.target_url if name == "source" else stack.source_url
+
+            def observe(process, name=name, other_url=other_url):
+                # Keep both HTTP series active during longer trials. These
+                # one-per-second info reads are display traffic, not T36 input.
+                # The single T18 producer still owns the plan's window stream.
+                start = time.monotonic()
+                reads, failed = 0, 0
+                with httpx.Client(trust_env=False, timeout=2) as client:
+                    while process.poll() is None:
+                        if time.monotonic() - start > args.duration_per_environment + 120:
+                            process.terminate()
+                            try:
+                                process.wait(5)
+                            except subprocess.TimeoutExpired:
+                                process.kill()
+                                process.wait()
+                            raise RuntimeError("bounded_load_trial_timeout")
+                        try:
+                            failed += client.get(other_url + "/api/info").status_code != 200
+                        except httpx.HTTPError:
+                            failed += 1
+                        reads += 1
+                        if reads % 30 == 0:
+                            (ROOT / "progress.json").write_text(
+                                json.dumps(
+                                    dict(
+                                        phase=name,
+                                        elapsed_seconds=round(time.monotonic() - start),
+                                        display_reads=reads,
+                                        display_failures=failed,
+                                    )
+                                )
+                            )
+                        time.sleep(1)
+                result[name + "_display_traffic"] = dict(requests=reads, failures=failed)
+
             r = h.loadgen(
                 name,
                 url,
-                duration=30,
+                duration=args.duration_per_environment,
                 write=50,
                 read=150,
                 extra=("--window-url", intake + "/v1/observability/windows"),
+                during=observe,
             )
             result["checks"][name + "_writes_reconciled"] = r.code == 0
             result["checks"][name + "_header_attribution"] = (
