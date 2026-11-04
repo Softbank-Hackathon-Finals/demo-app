@@ -1,0 +1,974 @@
+{
+  "scope": "local matched latest main vs pipeline; synthetic RTT, native app processes, no TLS or shared cloud calls",
+  "duration_seconds_per_cell": 180,
+  "configured_write_rps": 50,
+  "configured_read_rps": 150,
+  "repetitions": 2,
+  "qualification": "NOT_PASSED",
+  "baseline": {
+    "source_revision": "4c6684e62d27ccfb6cb68b1e7ead263fd7998c79",
+    "source_files": [
+      {
+        "path": "app/store.py",
+        "sha256": "757cdbf28f7833e492d3c98271b84f10e7ed23db41d0a66ed81e808a0bc2aebd"
+      },
+      {
+        "path": "app/main.py",
+        "sha256": "e064410e9e40ad4b4f4894adfda0746d23703e2e2d678d90aeb785efef82cb5a"
+      },
+      {
+        "path": "app/metrics.py",
+        "sha256": "c77cd0ba2bf3de5fc47e13c91b1ca8b2e7eeb1842aa96ccac2f453035ea53e81"
+      },
+      {
+        "path": "app/storage.py",
+        "sha256": "77f2214bdcc031fd87716fdd8e7525f2530edaff52740b9b0940b5fffed7dcbf"
+      },
+      {
+        "path": "uv.lock",
+        "sha256": "4bc05a1dabc865d8ce8b195de20d028cbf6252bcf51ad8851de81b57b4d55a94"
+      }
+    ]
+  },
+  "candidate": {
+    "source_revision": "4e8ee830de6c45a6898e9433f3d414498a9972e2",
+    "source_files": [
+      {
+        "path": "app/store.py",
+        "sha256": "4d8a537d3d59d5b38121f94d5056027eaa71243a0b8aa03909bec832a7998a87"
+      },
+      {
+        "path": "app/main.py",
+        "sha256": "e064410e9e40ad4b4f4894adfda0746d23703e2e2d678d90aeb785efef82cb5a"
+      },
+      {
+        "path": "app/metrics.py",
+        "sha256": "c77cd0ba2bf3de5fc47e13c91b1ca8b2e7eeb1842aa96ccac2f453035ea53e81"
+      },
+      {
+        "path": "app/storage.py",
+        "sha256": "77f2214bdcc031fd87716fdd8e7525f2530edaff52740b9b0940b5fffed7dcbf"
+      },
+      {
+        "path": "uv.lock",
+        "sha256": "4bc05a1dabc865d8ce8b195de20d028cbf6252bcf51ad8851de81b57b4d55a94"
+      }
+    ]
+  },
+  "measured_candidate_local_checkout": "2317eaeff05aa8b4e930abe08f6ca5b80b4c0ab8",
+  "candidate_equivalence": "The listed runtime source files are byte-identical to the published candidate revision. The measured detached commit is retained locally.",
+  "harness_artifacts": [
+    {
+      "name": "mock-edge.conf",
+      "sha256": "2ad6a09784739c73fed00cfbbed3a60f4c27ba2a6493fd72413f51336966b122"
+    },
+    {
+      "name": "tcp_fault.py",
+      "sha256": "e638b51de54c07cb56b7f7e6609f224402e49924e2762f8dbc37aecdfa20f43a"
+    },
+    {
+      "name": "e2e.py",
+      "sha256": "b620dc4a5602314b2d0c8ed57c3f04e96da483b7e688213ebc7afbabbfcf2a42"
+    },
+    {
+      "name": "lock_lab.py",
+      "sha256": "48a30c085fb2af3f7cd271ae7a4d698d59f5fd500eb905119c0e51410355e171"
+    },
+    {
+      "name": "lock_lab_report.py",
+      "sha256": "e471592e68642a888a2692f95b7e921dc70f72b7dc47a1a325fbe55b02651ced"
+    },
+    {
+      "name": "lock_lab_driver.py",
+      "sha256": "2fcbd2ee6bfa02ff8f00773a9594a719ba6ee1f0b951530d719e418e7944eaa3"
+    },
+    {
+      "name": "lock_lab_tap.py",
+      "sha256": "f0a4e70e50579eda9dd127ee10669bb309e46c73cde2054864e441e6e6fa49af"
+    },
+    {
+      "name": "mutation_check.py",
+      "sha256": "e9808a353c83ce652c9e29efc7258cc1b1789e5c1191baf93aea40fc2690017c"
+    }
+  ],
+  "harness_changes": [
+    "same local IPv4 gateway diagnostic retained",
+    "remove edge-added X-Bravo-Env because both current apps emit native headers",
+    "preserve thresholds, all windows and failed measurements"
+  ],
+  "limits": [
+    "Local Docker PostgreSQL 16 and PgBouncer with synthetic RTT; not production Cloudflare/Tailscale/TLS.",
+    "Same dependency lock, current metrics, native environment headers and attachment code in both variants.",
+    "Host was shared with development/review activity and regression tests; no isolated or randomized benchmark claim.",
+    "All failed/UNKNOWN windows retained; first candidate RTT40 had generator delay and failed logical writes.",
+    "No PAUSE/cutover measured; zero lost/duplicate confirmed writes does not imply zero failed requests or RPO 0 migration."
+  ],
+  "results": [
+    {
+      "variant": "baseline",
+      "rep": 1,
+      "rtt_ms": 20.0,
+      "target_percent": 50,
+      "path": "pgbouncer",
+      "load_average_at_start": [
+        2.33,
+        2.44,
+        2.52
+      ],
+      "reconcile_verdict": "FAIL",
+      "reconcile_reasons": [
+        "FAILED"
+      ],
+      "nfr2": {
+        "failed": 4929,
+        "lost": 0,
+        "duplicated": 0
+      },
+      "content_mismatch": 0,
+      "phantom_rows": 0,
+      "logical_writes": 9000,
+      "retried": 7422,
+      "write": {
+        "attempts": 33807,
+        "http_5xx": 6670,
+        "http_4xx": 0,
+        "timeout": 17568,
+        "connect": 5498,
+        "p95_ms": 18362.681
+      },
+      "read": {
+        "attempts": 27000,
+        "http_5xx": 1806,
+        "http_4xx": 0,
+        "timeout": 15219,
+        "connect": 1381,
+        "p95_ms": 18431.922
+      },
+      "write_gap_max_ms": 4318.402,
+      "achieved_write_rps": 49.591,
+      "achieved_read_rps": 146.982,
+      "scheduler_lag_ms": {
+        "p95": 3260.789,
+        "max": 5016.065
+      },
+      "warnings": [
+        "NOT_EDGE_MEASURED",
+        "GENERATOR_LAGGING",
+        "HTTP_ERRORS"
+      ],
+      "unattributed": {
+        "timeout": 32785,
+        "connect": 6879,
+        "other": 0
+      },
+      "judge": [
+        "FAIL",
+        "FAIL",
+        "FAIL",
+        "FAIL",
+        "FAIL",
+        "FAIL",
+        "FAIL",
+        "FAIL",
+        "FAIL",
+        "FAIL",
+        "FAIL",
+        "FAIL",
+        "FAIL",
+        "FAIL",
+        "FAIL",
+        "FAIL",
+        "FAIL",
+        "FAIL",
+        "FAIL",
+        "FAIL",
+        "FAIL",
+        "FAIL",
+        "FAIL",
+        "FAIL"
+      ],
+      "judge_reasons": {
+        "ERROR_RATE": 24,
+        "NOT_APPLIED": 10,
+        "P95": 18,
+        "INSUFFICIENT_SAMPLES": 9
+      },
+      "lock_wait_ms": {
+        "p50": 8.121,
+        "p95": 226.539,
+        "p99": 249.555,
+        "max": 411.371
+      },
+      "lock_waiters_max": 18,
+      "lock_timed_out": 0,
+      "app_errors": {
+        "source": {
+          "/api/messages QueryCanceled": 2656,
+          "/api/messages PoolTimeout": 1490
+        },
+        "target": {
+          "/api/messages QueryCanceled": 1865,
+          "/api/messages PoolTimeout": 4971
+        }
+      },
+      "pause_ms": null,
+      "effective_rtt_ms": {
+        "samples": 1081,
+        "p50_ms": 22.238,
+        "p95_ms": 26.441,
+        "max_ms": 126.977
+      },
+      "edge_errors": {}
+    },
+    {
+      "variant": "baseline",
+      "rep": 1,
+      "rtt_ms": 40.0,
+      "target_percent": 50,
+      "path": "pgbouncer",
+      "load_average_at_start": [
+        5.04,
+        3.93,
+        3.14
+      ],
+      "reconcile_verdict": "FAIL",
+      "reconcile_reasons": [
+        "FAILED"
+      ],
+      "nfr2": {
+        "failed": 6942,
+        "lost": 0,
+        "duplicated": 0
+      },
+      "content_mismatch": 0,
+      "phantom_rows": 0,
+      "logical_writes": 9000,
+      "retried": 6100,
+      "write": {
+        "attempts": 31496,
+        "http_5xx": 6392,
+        "http_4xx": 0,
+        "timeout": 9682,
+        "connect": 13364,
+        "p95_ms": 69177.479
+      },
+      "read": {
+        "attempts": 27000,
+        "http_5xx": 2251,
+        "http_4xx": 0,
+        "timeout": 14900,
+        "connect": 4892,
+        "p95_ms": 78543.524
+      },
+      "write_gap_max_ms": 82367.53,
+      "achieved_write_rps": 47.627,
+      "achieved_read_rps": 127.47,
+      "scheduler_lag_ms": {
+        "p95": 30365.692,
+        "max": 31821.99
+      },
+      "warnings": [
+        "NOT_EDGE_MEASURED",
+        "GENERATOR_LAGGING",
+        "HTTP_ERRORS",
+        "LOCK_PROBE_STALLED"
+      ],
+      "unattributed": {
+        "timeout": 24396,
+        "connect": 17232,
+        "other": 0
+      },
+      "judge": [
+        "FAIL",
+        "FAIL",
+        "FAIL",
+        "FAIL",
+        "FAIL",
+        "FAIL",
+        "FAIL",
+        "FAIL",
+        "FAIL",
+        "FAIL",
+        "FAIL",
+        "FAIL",
+        "FAIL",
+        "FAIL",
+        "FAIL",
+        "FAIL",
+        "FAIL",
+        "UNKNOWN",
+        "FAIL",
+        "FAIL",
+        "UNKNOWN",
+        "FAIL",
+        "FAIL",
+        "FAIL"
+      ],
+      "judge_reasons": {
+        "ERROR_RATE": 22,
+        "NOT_APPLIED": 17,
+        "P95": 10,
+        "INSUFFICIENT_SAMPLES": 15
+      },
+      "lock_wait_ms": {
+        "p50": 0.007,
+        "p95": 238.528,
+        "p99": 331.108,
+        "max": 454.62
+      },
+      "lock_waiters_max": 18,
+      "lock_timed_out": 0,
+      "app_errors": {
+        "source": {
+          "/api/messages QueryCanceled": 2509,
+          "/api/messages PoolTimeout": 724
+        },
+        "target": {
+          "/api/messages QueryCanceled": 1237,
+          "/api/messages PoolTimeout": 5285
+        }
+      },
+      "pause_ms": null,
+      "effective_rtt_ms": {
+        "samples": 982,
+        "p50_ms": 44.035,
+        "p95_ms": 85.691,
+        "max_ms": 991.174
+      },
+      "edge_errors": {
+        "upstream prematurely closed connection": 5
+      }
+    },
+    {
+      "variant": "candidate",
+      "rep": 1,
+      "rtt_ms": 20.0,
+      "target_percent": 50,
+      "path": "pgbouncer",
+      "load_average_at_start": [
+        2.57,
+        4.14,
+        3.55
+      ],
+      "reconcile_verdict": "PASS",
+      "reconcile_reasons": [],
+      "nfr2": {
+        "failed": 0,
+        "lost": 0,
+        "duplicated": 0
+      },
+      "content_mismatch": 0,
+      "phantom_rows": 0,
+      "logical_writes": 9000,
+      "retried": 0,
+      "write": {
+        "attempts": 9000,
+        "http_5xx": 0,
+        "http_4xx": 0,
+        "timeout": 0,
+        "connect": 0,
+        "p95_ms": 428.548
+      },
+      "read": {
+        "attempts": 27000,
+        "http_5xx": 0,
+        "http_4xx": 0,
+        "timeout": 0,
+        "connect": 0,
+        "p95_ms": 439.909
+      },
+      "write_gap_max_ms": 339.421,
+      "achieved_write_rps": 50.0,
+      "achieved_read_rps": 150.0,
+      "scheduler_lag_ms": {
+        "p95": 19.751,
+        "max": 293.863
+      },
+      "warnings": [
+        "NOT_EDGE_MEASURED"
+      ],
+      "unattributed": {
+        "timeout": 0,
+        "connect": 0,
+        "other": 0
+      },
+      "judge": [
+        "PASS",
+        "PASS",
+        "PASS",
+        "PASS",
+        "PASS",
+        "PASS",
+        "PASS",
+        "PASS",
+        "PASS",
+        "PASS",
+        "PASS",
+        "PASS",
+        "FAIL",
+        "FAIL",
+        "PASS",
+        "PASS",
+        "PASS",
+        "PASS"
+      ],
+      "judge_reasons": {
+        "P95": 2
+      },
+      "lock_wait_ms": {
+        "p50": 0.002,
+        "p95": 0.006,
+        "p99": 0.467,
+        "max": 1.001
+      },
+      "lock_waiters_max": 1,
+      "lock_timed_out": 0,
+      "app_errors": {
+        "source": {},
+        "target": {}
+      },
+      "pause_ms": null,
+      "effective_rtt_ms": {
+        "samples": 810,
+        "p50_ms": 21.44,
+        "p95_ms": 24.544,
+        "max_ms": 179.279
+      },
+      "edge_errors": {}
+    },
+    {
+      "variant": "candidate",
+      "rep": 1,
+      "rtt_ms": 40.0,
+      "target_percent": 50,
+      "path": "pgbouncer",
+      "load_average_at_start": [
+        4.01,
+        3.9,
+        3.54
+      ],
+      "reconcile_verdict": "FAIL",
+      "reconcile_reasons": [
+        "FAILED"
+      ],
+      "nfr2": {
+        "failed": 2205,
+        "lost": 0,
+        "duplicated": 0
+      },
+      "content_mismatch": 0,
+      "phantom_rows": 0,
+      "logical_writes": 9000,
+      "retried": 5673,
+      "write": {
+        "attempts": 21772,
+        "http_5xx": 0,
+        "http_4xx": 0,
+        "timeout": 14977,
+        "connect": 0,
+        "p95_ms": 17252.686
+      },
+      "read": {
+        "attempts": 27000,
+        "http_5xx": 0,
+        "http_4xx": 0,
+        "timeout": 16643,
+        "connect": 0,
+        "p95_ms": 17227.667
+      },
+      "write_gap_max_ms": 2797.343,
+      "achieved_write_rps": 49.99,
+      "achieved_read_rps": 149.934,
+      "scheduler_lag_ms": {
+        "p95": 1763.835,
+        "max": 3378.224
+      },
+      "warnings": [
+        "NOT_EDGE_MEASURED",
+        "GENERATOR_LAGGING",
+        "HTTP_ERRORS"
+      ],
+      "unattributed": {
+        "timeout": 31618,
+        "connect": 0,
+        "other": 0
+      },
+      "judge": [
+        "FAIL",
+        "FAIL",
+        "FAIL",
+        "FAIL",
+        "FAIL",
+        "FAIL",
+        "FAIL",
+        "FAIL",
+        "FAIL",
+        "FAIL",
+        "FAIL",
+        "FAIL",
+        "FAIL",
+        "FAIL",
+        "FAIL",
+        "FAIL",
+        "FAIL",
+        "FAIL",
+        "FAIL"
+      ],
+      "judge_reasons": {
+        "P95": 19,
+        "ERROR_RATE": 17,
+        "INSUFFICIENT_SAMPLES": 3,
+        "NOT_APPLIED": 1
+      },
+      "lock_wait_ms": {
+        "p50": 0.002,
+        "p95": 0.213,
+        "p99": 8.911,
+        "max": 23.994
+      },
+      "lock_waiters_max": 14,
+      "lock_timed_out": 0,
+      "app_errors": {
+        "source": {},
+        "target": {}
+      },
+      "pause_ms": null,
+      "effective_rtt_ms": {
+        "samples": 790,
+        "p50_ms": 42.342,
+        "p95_ms": 45.523,
+        "max_ms": 131.512
+      },
+      "edge_errors": {}
+    },
+    {
+      "variant": "baseline",
+      "rep": 2,
+      "rtt_ms": 20.0,
+      "target_percent": 50,
+      "path": "pgbouncer",
+      "load_average_at_start": [
+        3.76,
+        4.21,
+        3.8
+      ],
+      "reconcile_verdict": "FAIL",
+      "reconcile_reasons": [
+        "FAILED"
+      ],
+      "nfr2": {
+        "failed": 5471,
+        "lost": 0,
+        "duplicated": 0
+      },
+      "content_mismatch": 0,
+      "phantom_rows": 0,
+      "logical_writes": 9000,
+      "retried": 6546,
+      "write": {
+        "attempts": 25549,
+        "http_5xx": 5372,
+        "http_4xx": 0,
+        "timeout": 11844,
+        "connect": 4804,
+        "p95_ms": 58937.849
+      },
+      "read": {
+        "attempts": 27000,
+        "http_5xx": 1877,
+        "http_4xx": 0,
+        "timeout": 15898,
+        "connect": 1768,
+        "p95_ms": 59463.955
+      },
+      "write_gap_max_ms": 57997.098,
+      "achieved_write_rps": 44.108,
+      "achieved_read_rps": 135.741,
+      "scheduler_lag_ms": {
+        "p95": 18674.671,
+        "max": 26109.447
+      },
+      "warnings": [
+        "NOT_EDGE_MEASURED",
+        "GENERATOR_LAGGING",
+        "HTTP_ERRORS",
+        "LOCK_PROBE_STALLED"
+      ],
+      "unattributed": {
+        "timeout": 27741,
+        "connect": 6432,
+        "other": 0
+      },
+      "judge": [
+        "FAIL",
+        "FAIL",
+        "FAIL",
+        "FAIL",
+        "FAIL",
+        "FAIL",
+        "FAIL",
+        "FAIL",
+        "FAIL",
+        "FAIL",
+        "FAIL",
+        "FAIL",
+        "FAIL",
+        "FAIL",
+        "FAIL",
+        "FAIL",
+        "FAIL",
+        "FAIL",
+        "FAIL",
+        "FAIL",
+        "FAIL",
+        "FAIL",
+        "FAIL",
+        "FAIL"
+      ],
+      "judge_reasons": {
+        "ERROR_RATE": 24,
+        "NOT_APPLIED": 18,
+        "P95": 15,
+        "INSUFFICIENT_SAMPLES": 10
+      },
+      "lock_wait_ms": {
+        "p50": 0.007,
+        "p95": 231.088,
+        "p99": 260.46,
+        "max": 444.729
+      },
+      "lock_waiters_max": 18,
+      "lock_timed_out": 0,
+      "app_errors": {
+        "source": {
+          "/api/messages QueryCanceled": 2343,
+          "/api/messages PoolTimeout": 397
+        },
+        "target": {
+          "/api/messages QueryCanceled": 1563,
+          "/api/messages PoolTimeout": 4221
+        }
+      },
+      "pause_ms": null,
+      "effective_rtt_ms": {
+        "samples": 1085,
+        "p50_ms": 23.058,
+        "p95_ms": 31.293,
+        "max_ms": 1348.668
+      },
+      "edge_errors": {
+        "upstream prematurely closed connection": 1
+      }
+    },
+    {
+      "variant": "baseline",
+      "rep": 2,
+      "rtt_ms": 40.0,
+      "target_percent": 50,
+      "path": "pgbouncer",
+      "load_average_at_start": [
+        4.29,
+        4.67,
+        4.12
+      ],
+      "reconcile_verdict": "FAIL",
+      "reconcile_reasons": [
+        "FAILED"
+      ],
+      "nfr2": {
+        "failed": 6261,
+        "lost": 0,
+        "duplicated": 0
+      },
+      "content_mismatch": 0,
+      "phantom_rows": 0,
+      "logical_writes": 9000,
+      "retried": 5024,
+      "write": {
+        "attempts": 29710,
+        "http_5xx": 5415,
+        "http_4xx": 0,
+        "timeout": 8351,
+        "connect": 13205,
+        "p95_ms": 85427.169
+      },
+      "read": {
+        "attempts": 27000,
+        "http_5xx": 2479,
+        "http_4xx": 0,
+        "timeout": 13345,
+        "connect": 4988,
+        "p95_ms": 94569.928
+      },
+      "write_gap_max_ms": 69490.647,
+      "achieved_write_rps": 38.932,
+      "achieved_read_rps": 121.123,
+      "scheduler_lag_ms": {
+        "p95": 38954.081,
+        "max": 52259.89
+      },
+      "warnings": [
+        "NOT_EDGE_MEASURED",
+        "GENERATOR_LAGGING",
+        "HTTP_ERRORS",
+        "LOCK_PROBE_STALLED"
+      ],
+      "unattributed": {
+        "timeout": 19057,
+        "connect": 18193,
+        "other": 0
+      },
+      "judge": [
+        "FAIL",
+        "FAIL",
+        "FAIL",
+        "FAIL",
+        "FAIL",
+        "FAIL",
+        "FAIL",
+        "FAIL",
+        "FAIL",
+        "FAIL",
+        "FAIL",
+        "FAIL",
+        "FAIL",
+        "FAIL",
+        "FAIL",
+        "FAIL",
+        "UNKNOWN",
+        "FAIL",
+        "UNKNOWN",
+        "FAIL",
+        "UNKNOWN",
+        "UNKNOWN",
+        "FAIL",
+        "FAIL",
+        "FAIL"
+      ],
+      "judge_reasons": {
+        "ERROR_RATE": 21,
+        "NOT_APPLIED": 21,
+        "P95": 10,
+        "INSUFFICIENT_SAMPLES": 15
+      },
+      "lock_wait_ms": {
+        "p50": 0.006,
+        "p95": 260.079,
+        "p99": 373.769,
+        "max": 934.608
+      },
+      "lock_waiters_max": 19,
+      "lock_timed_out": 0,
+      "app_errors": {
+        "source": {
+          "/api/messages QueryCanceled": 2036,
+          "/api/messages PoolTimeout": 414
+        },
+        "target": {
+          "/api/messages QueryCanceled": 1214,
+          "/api/messages PoolTimeout": 5654
+        }
+      },
+      "pause_ms": null,
+      "effective_rtt_ms": {
+        "samples": 1032,
+        "p50_ms": 44.145,
+        "p95_ms": 84.783,
+        "max_ms": 543.769
+      },
+      "edge_errors": {
+        "upstream prematurely closed connection": 3
+      }
+    },
+    {
+      "variant": "candidate",
+      "rep": 2,
+      "rtt_ms": 20.0,
+      "target_percent": 50,
+      "path": "pgbouncer",
+      "load_average_at_start": [
+        4.39,
+        5.88,
+        4.94
+      ],
+      "reconcile_verdict": "PASS",
+      "reconcile_reasons": [],
+      "nfr2": {
+        "failed": 0,
+        "lost": 0,
+        "duplicated": 0
+      },
+      "content_mismatch": 0,
+      "phantom_rows": 0,
+      "logical_writes": 9000,
+      "retried": 0,
+      "write": {
+        "attempts": 9000,
+        "http_5xx": 0,
+        "http_4xx": 0,
+        "timeout": 0,
+        "connect": 0,
+        "p95_ms": 28.513
+      },
+      "read": {
+        "attempts": 27000,
+        "http_5xx": 0,
+        "http_4xx": 0,
+        "timeout": 0,
+        "connect": 0,
+        "p95_ms": 26.863
+      },
+      "write_gap_max_ms": 148.238,
+      "achieved_write_rps": 50.0,
+      "achieved_read_rps": 150.0,
+      "scheduler_lag_ms": {
+        "p95": 1.787,
+        "max": 85.983
+      },
+      "warnings": [
+        "NOT_EDGE_MEASURED"
+      ],
+      "unattributed": {
+        "timeout": 0,
+        "connect": 0,
+        "other": 0
+      },
+      "judge": [
+        "PASS",
+        "PASS",
+        "PASS",
+        "PASS",
+        "PASS",
+        "PASS",
+        "PASS",
+        "PASS",
+        "PASS",
+        "PASS",
+        "PASS",
+        "PASS",
+        "PASS",
+        "PASS",
+        "PASS",
+        "PASS",
+        "PASS",
+        "PASS"
+      ],
+      "judge_reasons": {},
+      "lock_wait_ms": {
+        "p50": 0.001,
+        "p95": 0.004,
+        "p99": 0.439,
+        "max": 0.658
+      },
+      "lock_waiters_max": 0,
+      "lock_timed_out": 0,
+      "app_errors": {
+        "source": {},
+        "target": {}
+      },
+      "pause_ms": null,
+      "effective_rtt_ms": {
+        "samples": 813,
+        "p50_ms": 21.344,
+        "p95_ms": 23.568,
+        "max_ms": 56.974
+      },
+      "edge_errors": {}
+    },
+    {
+      "variant": "candidate",
+      "rep": 2,
+      "rtt_ms": 40.0,
+      "target_percent": 50,
+      "path": "pgbouncer",
+      "load_average_at_start": [
+        3.98,
+        4.75,
+        4.62
+      ],
+      "reconcile_verdict": "PASS",
+      "reconcile_reasons": [],
+      "nfr2": {
+        "failed": 0,
+        "lost": 0,
+        "duplicated": 0
+      },
+      "content_mismatch": 0,
+      "phantom_rows": 0,
+      "logical_writes": 9000,
+      "retried": 0,
+      "write": {
+        "attempts": 9000,
+        "http_5xx": 0,
+        "http_4xx": 0,
+        "timeout": 0,
+        "connect": 0,
+        "p95_ms": 48.341
+      },
+      "read": {
+        "attempts": 27000,
+        "http_5xx": 0,
+        "http_4xx": 0,
+        "timeout": 0,
+        "connect": 0,
+        "p95_ms": 46.519
+      },
+      "write_gap_max_ms": 145.657,
+      "achieved_write_rps": 50.0,
+      "achieved_read_rps": 150.0,
+      "scheduler_lag_ms": {
+        "p95": 1.927,
+        "max": 71.074
+      },
+      "warnings": [
+        "NOT_EDGE_MEASURED"
+      ],
+      "unattributed": {
+        "timeout": 0,
+        "connect": 0,
+        "other": 0
+      },
+      "judge": [
+        "PASS",
+        "PASS",
+        "PASS",
+        "PASS",
+        "PASS",
+        "PASS",
+        "PASS",
+        "PASS",
+        "PASS",
+        "PASS",
+        "PASS",
+        "PASS",
+        "PASS",
+        "PASS",
+        "PASS",
+        "PASS",
+        "PASS",
+        "PASS"
+      ],
+      "judge_reasons": {},
+      "lock_wait_ms": {
+        "p50": 0.001,
+        "p95": 0.005,
+        "p99": 0.519,
+        "max": 10.238
+      },
+      "lock_waiters_max": 1,
+      "lock_timed_out": 0,
+      "app_errors": {
+        "source": {},
+        "target": {}
+      },
+      "pause_ms": null,
+      "effective_rtt_ms": {
+        "samples": 746,
+        "p50_ms": 41.35,
+        "p95_ms": 43.316,
+        "max_ms": 89.95
+      },
+      "edge_errors": {}
+    }
+  ]
+}
