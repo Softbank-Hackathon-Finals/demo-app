@@ -1,0 +1,57 @@
+{
+  "scope": "local real PostgreSQL 17.11 with Chromium and WebKit; shared DB and local routing fixture",
+  "source_revision": "447f26132e0df671815aabd8d3ec3aee6f6eecfc",
+  "source_files": [
+    {
+      "path": "app/store.py",
+      "sha256": "4d8a537d3d59d5b38121f94d5056027eaa71243a0b8aa03909bec832a7998a87"
+    },
+    {
+      "path": "app/main.py",
+      "sha256": "e064410e9e40ad4b4f4894adfda0746d23703e2e2d678d90aeb785efef82cb5a"
+    },
+    {
+      "path": "app/static/chat.js",
+      "sha256": "dcb29551efb73afc1b86d1132d3b692905915963cee9b7104c63d665b3815e94"
+    },
+    {
+      "path": "app/static/transport.js",
+      "sha256": "bd1eadd0c930f0794589e1537f361249b5607e11cdeb743f276efd3116db4c76"
+    },
+    {
+      "path": "tests/ui-browser/chat.spec.js",
+      "sha256": "985cb39d7b5c31cd3fdb667d0d5c26810f443440b2bf7ff71a0cdb241ece8c7b"
+    },
+    {
+      "path": "testing/browser_database.py",
+      "sha256": "61430169c4fa66fc7c620ec72bbea74db238bbd1514962f14ebd4637f6385e68"
+    },
+    {
+      "path": "uv.lock",
+      "sha256": "4bc05a1dabc865d8ce8b195de20d028cbf6252bcf51ad8851de81b57b4d55a94"
+    }
+  ],
+  "before_fixture_fix": {
+    "python_passed": 125,
+    "browser_passed": 17,
+    "browser_failed": 1,
+    "failure": "Combined pause/switch test asserted after=1 after a POST acknowledgement; that acknowledgement does not establish the WebSocket resume cursor."
+  },
+  "fixture_change": "Seed the initial message from another participant and wait until this browser receives it through WebSocket. Preserve after=1, same-key retry, all three messages and unique storage assertions. No application logic change.",
+  "after_fixture_fix": [
+    {
+      "run": 1,
+      "python_passed": 125,
+      "browser_passed": 18
+    },
+    {
+      "run": 2,
+      "python_passed": 125,
+      "browser_passed": 18
+    }
+  ],
+  "owned_postgres_stopped": true,
+  "cloud_cutover": "NOT_VERIFIED",
+  "database_migration": "NOT_VERIFIED",
+  "performance_qualification": "NOT_PASSED"
+}
