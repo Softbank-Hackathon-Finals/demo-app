@@ -62,6 +62,53 @@ CI의 `platform` 검사에서 기존 Python/Node 검사에 더해 Chromium·WebK
 | `app/storage.py` | 첨부를 **S3 SDK**로 저장 (`S3_ENDPOINT_URL`만 바꾸면 S3 호환 저장소로) |
 | `db/schema.sql` | 스키마. 관리자 역할로 적용하고 앱(`chat_app`)은 `SELECT` · `INSERT`만 가진다 |
 
+## 관측용 처리 환경 (T22 · T36)
+
+앱이 생성하는 모든 HTTP 응답에 `X-Bravo-Env: <APP_ENV>`를 넣습니다. 성공·정적 파일뿐
+아니라 401/404/409/422, 쓰기 차단·DB 장애 503, 처리되지 않은 예외의 500에도 적용합니다.
+요청 헤더는 사용하지 않으며 기존 `Retry-After`와 WebSocket 계약은 유지합니다.
+`APP_ENV`는 영숫자로 시작하는 1~128자 ASCII 식별자이며 이후 `_.:-`도 허용합니다.
+잘못된 값은 기동 시 거부합니다. 호스트 이름·사용자 값·비밀값을 넣지 않습니다.
+
+이 헤더는 앱 설정의 표시이지 클라우드 신원 증명이 아닙니다. T18/T36은 등록된 환경과
+검증된 요청 경로에 결속해 사용해야 합니다. Edge가 자체 생성한 오류나 응답 유실에는
+헤더가 없을 수 있으므로 환경 불명 오류로 처리하고 성공으로 누락하지 않습니다.
+프록시 캐시가 이전 응답을 재사용하지 않도록 관측 대상 요청의 캐시 정책도 확인해야 합니다.
+
+## T37 표시용 HTTP 지표
+
+`BRAVO_METRICS_ENDPOINT`를 설정하면 공식 OpenTelemetry SDK의 OTLP/HTTP exporter로
+`http.server.request.duration` 히스토그램(초 단위)을 10초마다 보냅니다. 기본은 비활성입니다.
+앱 요청 경로에서는 메모리에 기록하며 수집기 응답을 기다리지 않습니다. SDK·exporter는
+`uv.lock`에 고정합니다. HTTP 오류도 집계하며 WebSocket 세션은 HTTP 지연에 섞지 않습니다.
+
+- 속성은 HTTP 메서드, 상태 코드, 고정 라우트 템플릿 3개뿐입니다. 첨부 ID·원문 URL·쿼리·
+  채팅 본문·별명·헤더·토큰·SQL·trace exemplar는 보내지 않습니다. 알 수 없는 경로/메서드는
+  고정된 `unmatched`/`_OTHER`로 묶고 SDK의 시계열 개수 제한을 적용합니다.
+- 앱은 `bravo.env`를 정하지 않습니다. 등록된 T37 Collector가 환경을 덮어씁니다.
+  앱이 보고한 지표는 운영 화면용이며 T18 외부 부하 창·T36 판정 근거를 대신하지 않습니다.
+- 주소는 운영자가 고정한 `/v1/metrics` HTTPS URL입니다. 같은 호스트 sidecar/로컬 시험만
+  루프백 HTTP를 허용합니다. 사용자 정보·query·fragment가 있는 URL, 리다이렉트,
+  ambient proxy/netrc는 허용하지 않습니다. 범용 `OTEL_EXPORTER_OTLP*` 설정이 함께 있으면
+  다른 자격 증명/전송 설정을 몰래 상속하지 않고 기동을 거부합니다.
+- 사설 CA는 `BRAVO_METRICS_CA_FILE`, mTLS 클라이언트 쌍은
+  `BRAVO_METRICS_CLIENT_CERT`·`BRAVO_METRICS_CLIENT_KEY`의 절대 파일 경로로 설정합니다.
+  키를 환경변수 값이나 명령줄에 넣지 않습니다. TLS 인증서 검증을 끄는 옵션은 없습니다.
+- Collector 응답은 64 KiB로 제한하며 오류 본문과 원격 reason 문자열을 SDK에 넘기지 않습니다.
+- SDK 내보내기 제한은 1 MiB/2,048개 데이터 포인트이며, 전송 timeout 2초와 reader 제한을
+  둡니다. 내보내기 실패가 업무 HTTP 응답을 바꾸지 않습니다. 앱의 메모리 집계는 영속 큐가
+  아니며 프로세스 종료 시 미전송 지표가 유실될 수 있습니다. Collector의 수신·보존 자격은
+  T37에서 별도로 확인합니다. 서버 측 응답 시간은 클라이언트의 종단 지연과 다릅니다.
+
+팀 Collector가 원격 평문 OTLP 포트만 제공하는 경우 이 설정을 바로 활성화하지 않습니다.
+TLS 수신 또는 같은 Pod sidecar의 루프백 수신 경로, NetworkPolicy, 인증서 발급·회전,
+실제 보존/개인정보 검사를 먼저 연결해야 합니다. 현재 AWS/RKE2 계측 배포 완료를 뜻하지 않습니다.
+
+실제 앱·mTLS·부하창·WebSocket 연결 결과: [로컬 실측](docs/evidence/t22-observability-2026-11-04/README.md).
+
+공식 API: [OpenTelemetry Python exporters](https://opentelemetry.io/docs/languages/python/exporters/),
+[OTLP HTTP exporter](https://opentelemetry-python.readthedocs.io/en/latest/exporter/otlp/otlp.html).
+
 ## 환경변수
 
 | 이름 | 설명 |
