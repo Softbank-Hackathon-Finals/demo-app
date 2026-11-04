@@ -3,7 +3,7 @@ import hmac
 import logging
 import os
 import uuid
-from contextlib import asynccontextmanager
+from contextlib import AsyncExitStack, asynccontextmanager
 from pathlib import Path
 from typing import Annotated
 
@@ -30,8 +30,10 @@ from pydantic import BaseModel, Field, model_validator
 
 from app.config import Settings
 from app.db_secret import DbCredentials, fetch_db_credentials
+from app.environment import EnvironmentFastAPI
+from app.metrics import HttpMetrics
 from app.sockets import CloseUnconfirmed, SocketSession
-from app.storage import AttachmentStorage
+from app.storage import AttachmentConflict, AttachmentStorage, AttachmentUnavailable
 from app.store import IdempotencyConflict, Store, UnknownAttachment
 from app.upload_policy import AttachmentUploadPolicy
 
@@ -68,57 +70,60 @@ def create_app(
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
-        pool = None
-        if app.state.store is None:
-            credentials = DbCredentials(lambda: fetch_db_credentials(settings.db_secret_id))
-            await credentials.get()  # 시작 시 Secret을 못 읽으면 바로 실패한다
-            conninfo = make_conninfo(
-                host=settings.db_host,
-                port=settings.db_port,
-                dbname=settings.db_name,
-                application_name=f"demo-chat-{settings.app_env}",
-            )
+        async with AsyncExitStack() as stack:
+            metrics = HttpMetrics.from_env()
+            app.state.http_metrics = metrics
+            if metrics is not None:
+                stack.push_async_callback(run_in_threadpool, metrics.close)
+            if app.state.store is None:
+                credentials = DbCredentials(lambda: fetch_db_credentials(settings.db_secret_id))
+                await credentials.get()  # 시작 시 Secret을 못 읽으면 바로 실패한다
+                conninfo = make_conninfo(
+                    host=settings.db_host,
+                    port=settings.db_port,
+                    dbname=settings.db_name,
+                    application_name=f"demo-chat-{settings.app_env}",
+                )
 
-            async def connection_kwargs() -> dict:
-                user, password = await credentials.get()
-                # PgBouncer transaction 모드에서는 서버 쪽 prepared statement를 쓸 수 없다.
-                return {"user": user, "password": password, "prepare_threshold": None}
+                async def connection_kwargs() -> dict:
+                    user, password = await credentials.get()
+                    # PgBouncer transaction 모드에서는 서버 쪽 prepared statement를 쓸 수 없다.
+                    return {"user": user, "password": password, "prepare_threshold": None}
 
-            class Connection(AsyncConnection):
-                @classmethod
-                async def connect(cls, conninfo: str = "", **kwargs):
-                    try:
-                        return await super().connect(conninfo, **kwargs)
-                    except OperationalError as e:
-                        # 접속 단계의 인증 실패는 sqlstate 없이 libpq · PgBouncer 메시지로만 온다.
-                        # 비밀번호가 회전됐다고 보고 Secret을 다시 읽어 한 번만 재시도한다.
-                        # 다른 접속 실패(DB 중단 등)에는 Secret을 다시 읽지 않는다.
-                        if "password authentication failed" not in str(e):
-                            raise
-                        credentials.invalidate()
-                        kwargs.update(await connection_kwargs())
-                        return await super().connect(conninfo, **kwargs)
+                class Connection(AsyncConnection):
+                    @classmethod
+                    async def connect(cls, conninfo: str = "", **kwargs):
+                        try:
+                            return await super().connect(conninfo, **kwargs)
+                        except OperationalError as e:
+                            # 접속 단계의 인증 실패는 sqlstate 없이 libpq · PgBouncer 메시지로만 온다.
+                            # 비밀번호가 회전됐다고 보고 Secret을 다시 읽어 한 번만 재시도한다.
+                            # 다른 접속 실패(DB 중단 등)에는 Secret을 다시 읽지 않는다.
+                            if "password authentication failed" not in str(e):
+                                raise
+                            credentials.invalidate()
+                            kwargs.update(await connection_kwargs())
+                            return await super().connect(conninfo, **kwargs)
 
-            pool = AsyncConnectionPool(
-                conninfo,
-                connection_class=Connection,
-                kwargs=connection_kwargs,
-                min_size=1,
-                max_size=10,
-                timeout=settings.db_wait_seconds,
-                open=False,
-            )
-            await pool.open()
-            app.state.store = Store(pool, settings.tx_timeout_ms)
-        if app.state.storage is None:
-            app.state.storage = AttachmentStorage(
-                settings.s3_bucket, settings.s3_endpoint_url, settings.s3_force_path_style
-            )
-        yield
-        if pool is not None:
-            await pool.close()
+                pool = AsyncConnectionPool(
+                    conninfo,
+                    connection_class=Connection,
+                    kwargs=connection_kwargs,
+                    min_size=1,
+                    max_size=10,
+                    timeout=settings.db_wait_seconds,
+                    open=False,
+                )
+                stack.push_async_callback(pool.close)
+                await pool.open()
+                app.state.store = Store(pool, settings.tx_timeout_ms)
+            if app.state.storage is None:
+                app.state.storage = AttachmentStorage(
+                    settings.s3_bucket, settings.s3_endpoint_url, settings.s3_force_path_style
+                )
+            yield
 
-    app = FastAPI(title="demo-chat", lifespan=lifespan)
+    app = EnvironmentFastAPI(environment=settings.app_env, title="demo-chat", lifespan=lifespan)
     app.add_middleware(AttachmentUploadPolicy, enabled=settings.attachment_upload_enabled)
     app.state.settings = settings
     app.state.store = store
@@ -210,8 +215,17 @@ def create_app(
         filename = Path(file.filename or "file").name[:200]
         content_type = file.content_type or "application/octet-stream"
         object_key = f"attachments/{attachment_id}"
-        # 같은 id로 재시도하면 같은 객체를 덮어쓰므로 멱등이다.
-        await run_in_threadpool(app.state.storage.put, object_key, data, content_type)
+        # Conditional create never overwrites an existing id. A retry must read
+        # back identical bytes/type before it may proceed to DB metadata.
+        try:
+            await run_in_threadpool(app.state.storage.put, object_key, data, content_type)
+        except AttachmentConflict as error:
+            raise HTTPException(409, "attachment id reused with different content") from error
+        except AttachmentUnavailable as error:
+            raise HTTPException(
+                503, "attachment storage outcome is unconfirmed",
+                headers={"Retry-After": str(settings.retry_after)},
+            ) from error
         try:
             saved = await app.state.store.add_attachment(
                 attachment_id, object_key, filename, content_type, len(data)
@@ -283,9 +297,7 @@ def create_app(
                     items = None
                 if items:
                     last_id = items[-1]["id"]
-                    await session.send_json(
-                        {"type": "messages", "items": jsonable_encoder(items)}
-                    )
+                    await session.send_json({"type": "messages", "items": jsonable_encoder(items)})
                 elif items is not None and last_id is None:
                     last_id = 0
                 if public_status() != sent_status:
@@ -299,8 +311,10 @@ def create_app(
             # A cancelled handler is not proof that an in-flight close was sent.
             # Preserve uncertain operations for the next admin request.
             peer_disconnected = (
-                receiver.done() and not receiver.cancelled()
-                and receiver.exception() is None and receiver.result() is True
+                receiver.done()
+                and not receiver.cancelled()
+                and receiver.exception() is None
+                and receiver.result() is True
             )
             if session.closed or session.close_task is None or peer_disconnected:
                 sockets.discard(session)

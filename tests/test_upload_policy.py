@@ -97,6 +97,7 @@ def test_freeze_blocks_direct_upload_but_retains_data_reads_and_message_writes()
                 files={"file": ("new.txt", b"replacement")},
             )
             assert reply.status_code == 403
+            assert reply.headers["X-Bravo-Env"] == enabled.app_env
             assert "Retry-After" not in reply.headers
         # Malformed multipart is rejected by policy before parsing, too.
         assert (
@@ -111,6 +112,7 @@ def test_freeze_blocks_direct_upload_but_retains_data_reads_and_message_writes()
         assert store.attachments == metadata
         assert client.get(f"/api/attachments/{attachment_id}").content == b"original"
         assert client.post("/api/messages", json=message()).status_code == 201
+
         assert (
             client.post("/api/messages", json=message(attachment_id=attachment_id)).status_code
             == 201
@@ -124,3 +126,38 @@ def test_freeze_blocks_direct_upload_but_retains_data_reads_and_message_writes()
             assert result.json() == {"env": "local", "write_blocked": blocked}
             assert client.put(f"/api/attachments/{attachment_id}").status_code == 403
         assert client.post("/api/messages", json=message()).status_code == 201
+
+
+def test_frozen_upload_has_environment_before_consuming_body():
+    async def run():
+        store, storage = FakeStore(), FakeStorage()
+        app = create_app(settings(attachment_upload_enabled=False), store, storage)
+
+        async def receive():
+            raise AssertionError("frozen upload must not read the request body")
+
+        sent = []
+
+        async def send(event):
+            sent.append(event)
+
+        await app(
+            {
+                "type": "http",
+                "method": "PUT",
+                "path": "/api/attachments/example",
+                "headers": [],
+                "query_string": b"",
+                "http_version": "1.1",
+                "scheme": "http",
+                "server": ("localhost", 80),
+                "client": ("localhost", 1),
+            },
+            receive,
+            send,
+        )
+        assert sent[0]["status"] == 403
+        assert (b"x-bravo-env", b"local") in sent[0]["headers"]
+        assert store.attachments == {} and storage.objects == {}
+
+    asyncio.run(run())
