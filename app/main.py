@@ -35,6 +35,7 @@ from app.metrics import HttpMetrics
 from app.sockets import CloseUnconfirmed, SocketSession
 from app.storage import AttachmentConflict, AttachmentStorage, AttachmentUnavailable
 from app.store import IdempotencyConflict, Store, UnknownAttachment
+from app.upload_policy import AttachmentUploadPolicy
 
 log = logging.getLogger("demo-chat")
 
@@ -123,6 +124,7 @@ def create_app(
             yield
 
     app = EnvironmentFastAPI(environment=settings.app_env, title="demo-chat", lifespan=lifespan)
+    app.add_middleware(AttachmentUploadPolicy, enabled=settings.attachment_upload_enabled)
     app.state.settings = settings
     app.state.store = store
     app.state.storage = storage
@@ -148,6 +150,9 @@ def create_app(
 
     def status() -> dict:
         return {"env": settings.app_env, "write_blocked": app.state.write_blocked}
+
+    def public_status() -> dict:
+        return {**status(), "attachment_upload_enabled": settings.attachment_upload_enabled}
 
     @app.exception_handler(OperationalError)
     async def database_unavailable(request: Request, exc: OperationalError):
@@ -184,7 +189,7 @@ def create_app(
 
     @app.get("/api/info")
     async def info():
-        return status()
+        return public_status()
 
     @app.get("/api/messages")
     async def list_messages(after: int | None = None):
@@ -278,11 +283,11 @@ def create_app(
         await websocket.accept()
         session = SocketSession(websocket)
         sockets.add(session)
-        sent_status = status()
+        sent_status = public_status()
         receiver = asyncio.create_task(_drain(websocket))
         last_id = after
         try:
-            await session.send_json({"type": "hello", **status()})
+            await session.send_json({"type": "hello", **public_status()})
             while not receiver.done() and not session.closed:
                 try:
                     items = await app.state.store.list_messages(last_id, PAGE_SIZE)
@@ -295,8 +300,8 @@ def create_app(
                     await session.send_json({"type": "messages", "items": jsonable_encoder(items)})
                 elif items is not None and last_id is None:
                     last_id = 0
-                if status() != sent_status:
-                    sent_status = status()
+                if public_status() != sent_status:
+                    sent_status = public_status()
                     await session.send_json({"type": "status", **sent_status})
                 if items is None or len(items) < PAGE_SIZE:
                     await asyncio.wait({receiver}, timeout=settings.poll_interval)

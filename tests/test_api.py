@@ -178,7 +178,12 @@ def test_websocket_resumes_after_last_id(client):
         client.post("/api/messages", json=message(body=text))
     with client.websocket_connect("/ws?after=1") as ws:
         hello = ws.receive_json()
-        assert hello == {"type": "hello", "env": "aws", "write_blocked": False}
+        assert hello == {
+            "type": "hello",
+            "env": "aws",
+            "write_blocked": False,
+            "attachment_upload_enabled": True,
+        }
         batch = ws.receive_json()
         assert [m["body"] for m in batch["items"]] == ["둘", "셋"]
 
@@ -186,4 +191,9 @@ def test_websocket_resumes_after_last_id(client):
         assert [m["body"] for m in ws.receive_json()["items"]] == ["넷"]
 
         client.put("/admin/write-block", json={"blocked": True}, headers=ADMIN)
-        assert ws.receive_json() == {"type": "status", "env": "aws", "write_blocked": True}
+        assert ws.receive_json() == {
+            "type": "status",
+            "env": "aws",
+            "write_blocked": True,
+            "attachment_upload_enabled": True,
+        }

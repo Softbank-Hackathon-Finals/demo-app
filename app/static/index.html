@@ -47,11 +47,12 @@
           <label for="body" class="sr-only">메시지</label>
           <textarea id="body" placeholder="모의 상담 메시지를 입력하세요" maxlength="2000" rows="2"></textarea>
           <div class="composer-actions">
-            <label class="file-button" for="file">+ 첨부<input id="file" type="file" aria-label="첨부파일 선택"></label>
+            <label class="file-button" for="file">+ 첨부<input id="file" type="file" aria-label="첨부파일 선택" aria-describedby="upload-policy" disabled></label>
             <span id="counter">0 / 2,000</span>
             <button id="send" type="submit">보내기 <span aria-hidden="true">↑</span></button>
           </div>
         </div>
+        <p id="upload-policy" class="feedback" role="status">첨부파일 사용 가능 여부를 확인하고 있습니다.</p>
         <p id="feedback" class="feedback" role="status"></p>
       </form>
       <footer>공개 모의 대화방 · 개인정보 입력 금지. 전송 완료 전에는 이 창을 닫지 마세요.</footer>
