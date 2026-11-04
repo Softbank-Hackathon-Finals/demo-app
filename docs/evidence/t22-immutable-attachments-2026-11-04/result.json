@@ -1,0 +1,35 @@
+{
+  "status": "PASS",
+  "scope": "local SeaweedFS conditional writes, fixture then real PostgreSQL metadata; loopback HTTP; no AWS/RKE2 qualification",
+  "checks": {
+    "actual_application_sdk_configuration": true,
+    "identical_retry_verified": true,
+    "same_size_different_content_rejected": true,
+    "different_type_rejected": true,
+    "concurrent_distinct_payloads_single_winner": true,
+    "lost_ack_retry_reads_same_committed_object": true,
+    "real_store_http_conflict_and_idempotent_retry": true,
+    "real_postgres_denied_metadata_no_row": true,
+    "real_postgres_same_key_recovery_one_row": true,
+    "real_postgres_object_conflict_preserves_original": true
+  },
+  "owned_container_removed": true,
+  "image": "docker.io/chrislusf/seaweedfs:4.52@sha256:a54ba35b44895a449f5cdd415999062201b17b9835ec0ffc19ea605b72ffa3d1",
+  "concurrent_counts": {
+    "accepted": 1,
+    "conflict": 7,
+    "unknown": 0
+  },
+  "postgres_version_num": 170011,
+  "metadata_scope": "native PostgreSQL Unix socket, non-admin role, actual INSERT revoke/grant; real ASGI API and SeaweedFS; no distributed transaction",
+  "source_sha256": {
+    "app/main.py": "35351db6ca30a76f201586d9bbe34188baa833a1829fdf3d770ade35cd00b98c",
+    "app/storage.py": "77f2214bdcc031fd87716fdd8e7525f2530edaff52740b9b0940b5fffed7dcbf"
+  },
+  "owned_database_stopped": true,
+  "kind": "selected_field_summary",
+  "public_is_raw": false,
+  "raw_sha256": "80a1827ae2edf026e442b7951469e2c411612d1e1a22a31a6d6cb7eb3b77e746",
+  "tested_commit": "7669af8",
+  "platform_helper_commit": "3e60975"
+}
