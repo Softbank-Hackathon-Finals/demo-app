@@ -39,6 +39,43 @@ test('write pause retains the same request until acknowledged exactly once', asy
   expect((await (await request.get('/api/messages')).json()).length).toBe(1);
 });
 
+test('queued write and missed messages survive pause plus same-address switch together', async ({ page, request }) => {
+  await page.locator('#body').fill('전환 전 저장'); await page.locator('#send').click();
+  await expect(page.locator('#log .msg')).toHaveCount(1);
+  await expect(page.locator('#outbox')).toBeHidden();
+  const originalAddress = page.url(), payloads = [], sockets = [];
+  page.on('request', (req) => {
+    if (new URL(req.url()).pathname === '/api/messages' && req.method() === 'POST') payloads.push(req.postData());
+  });
+  page.on('websocket', (ws) => sockets.push(ws.url()));
+  expect((await request.put('/admin/write-block', { headers: admin, data: { blocked: true } })).ok()).toBe(true);
+  const rejected = page.waitForResponse((reply) =>
+    new URL(reply.url()).pathname === '/api/messages' && reply.request().method() === 'POST' && reply.status() === 503);
+  await page.locator('#body').fill('전환 중 대기'); await page.locator('#send').click();
+  await rejected;
+  await expect(page.locator('#outbox')).toContainText('같은 요청으로 재시도');
+  expect((await (await request.get('/api/messages')).json()).length).toBe(1);
+
+  expect((await request.post('/__test__/switch/onprem')).ok()).toBe(true);
+  const remote = await request.post('/api/messages', { data: message('전환 중 다른 참가자') });
+  expect(remote.status()).toBe(201);
+  await expect(page.locator('#env')).toHaveText('온프렘');
+  await expect(page.locator('#conn')).toHaveText('연결됨');
+  await expect(page.locator('#outbox')).toBeHidden({ timeout: 8000 });
+  await expect(page.locator('#log .msg')).toHaveCount(3);
+  for (const text of ['전환 전 저장', '전환 중 대기', '전환 중 다른 참가자']) {
+    await expect(page.locator('#log')).toContainText(text);
+  }
+  expect(page.url()).toBe(originalAddress);
+  expect(payloads.length).toBeGreaterThanOrEqual(2);
+  expect(new Set(payloads).size).toBe(1);
+  expect(sockets.some((url) => new URL(url).searchParams.get('after') === '1')).toBe(true);
+  const rows = await (await request.get('/api/messages')).json();
+  expect(rows.length).toBe(3);
+  expect(rows.filter((row) => row.body === '전환 중 대기').length).toBe(1);
+  expect(new Set(rows.map((row) => row.id)).size).toBe(3);
+});
+
 test('lost POST response retries the original key without duplicate storage', async ({ page, request }) => {
   let first = true; const bodies = [];
   await page.route('**/api/messages', async (route) => {
@@ -55,13 +92,11 @@ test('lost POST response retries the original key without duplicate storage', as
 });
 
 test('lost upload acknowledgement keeps one attachment id and then sends the message', async ({ page, request }) => {
-  let first = true; const addresses = [];
-  await page.route('**/api/attachments/*', async (route) => {
-    if (route.request().method() !== 'PUT') return route.continue();
-    addresses.push(route.request().url());
-    if (first) { first = false; await route.fetch(); await route.abort('failed'); }
-    else await route.continue();
+  const addresses = [];
+  page.on('request', (req) => {
+    if (new URL(req.url()).pathname.startsWith('/api/attachments/') && req.method() === 'PUT') addresses.push(req.url());
   });
+  expect((await request.post('/__test__/lose-next-upload-ack')).ok()).toBe(true);
   await page.locator('#file').setInputFiles({ name: 'sample.txt', mimeType: 'text/plain', buffer: Buffer.from('synthetic attachment') });
   await page.locator('#body').fill('첨부 응답 재확인'); await page.locator('#send').click();
   await expect(page.locator('#outbox')).toBeHidden({ timeout: 8000 });

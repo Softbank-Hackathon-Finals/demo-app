@@ -45,9 +45,24 @@ corepack pnpm test:browser         # Python .venv 준비 후 실행
 
 브라우저 시험은 localhost HTTP/WebSocket 호스트에서 재접속, 503 대기, 커밋 후 응답 유실,
 모바일 레이아웃, QR 판독, 메시지의 HTML 비실행을 확인한다. 두 시험 앱은 **메모리 저장소**를
-공유한다. 테스트 라우트 전환을 AWS→RKE2 이전이나 DB 무결성·무중단 운영 실측으로 세지
-않는다. 실제 DB 검증은 별도의 `TEST_DATABASE_URL` 시험이며, EKS·RKE2·Edge 컷오버와
-실제 휴대폰의 안정 URL 참여는 팀 통합 후 T22 완료 조건으로 확인한다.
+공유한다. 다음 명령은 새 PostgreSQL을 직접 만들고 비관리자 `chat_app` 역할의 실제
+`Store`로 Python 전체와 같은 Chromium·WebKit 시험을 실행한다. 기존 DB에 연결하지
+않으며 실행이 끝나면 이번 DB 프로세스를 종료한다. 첨부 바이트 저장소는 시험 대역이다.
+
+```sh
+uv run python testing/browser_database.py \
+  --pg-bin "$(pg_config --bindir)" --output "$PRIVATE_OUTPUT"
+```
+
+PostgreSQL 서버 도구와 설치된 브라우저가 필요하다. 출력은 존재하지 않는 비공개
+디렉터리로 지정한다. 쓰기 정지 중 대기한 요청, 동일 주소에서의 1012 재접속, 다른
+참가자의 중간 메시지 수신과 같은 키로 한 번만 저장되는 흐름을 함께 확인한다.
+첨부 성공 응답 유실 시험은 실제 브라우저 multipart를 바꾸지 않고, 저장이 끝난 뒤
+시험 호스트가 성공 응답만 503으로 바꾼다. 시험용 관리 라우트는 서비스 이미지에 없다.
+
+이것은 같은 PostgreSQL을 사용하는 로컬 앱 전환이다. AWS→RKE2나 DB 이전·무중단
+운영 실측을 뜻하지 않는다. EKS·RKE2·Edge 컷오버와 실제 휴대폰의 안정 URL 참여는
+팀 통합 후 T22 완료 조건으로 확인한다.
 
 CI의 `platform` 검사에서 기존 Python/Node 검사에 더해 Chromium·WebKit 브라우저 시험을
 실행한다. 테스트 호스트·제어 endpoint는 `tests/`에만 있고 서비스 이미지에 포함하지 않는다.
