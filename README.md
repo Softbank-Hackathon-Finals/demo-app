@@ -80,7 +80,7 @@ CI의 `platform` 검사에서 기존 Python/Node 검사에 더해 Chromium·WebK
 | 요청 | 설명 |
 |---|---|
 | `POST /api/messages` | `{idempotency_key, author, body, attachment_id?}`. 새로 저장하면 201, 같은 키 재전송이면 200(같은 메시지), 같은 키에 다른 내용이면 409 |
-| `PUT /api/attachments/{id}` | multipart `file`. 클라이언트가 만든 `id`가 멱등 키다 |
+| `PUT /api/attachments/{id}` | multipart `file`. 조건부 객체 생성, 같은 ID 재시도는 실제 내용·형식 대조. 불일치409, 저장 결과 미확인503 |
 | `GET /api/messages?after=<id>` · `GET /api/attachments/{id}` | 읽기. 쓰기 차단 중에도 된다 |
 | `WS /ws?after=<id>` | `hello` → `messages`(id 순) · `status`(쓰기 차단 변경). 마지막 id 이후를 DB에서 1초마다 조회한다. 서버 종료 시 1012로 닫는다 |
 | `GET /api/info` | 접속 환경 · 쓰기 차단 상태 |
@@ -122,3 +122,24 @@ HTTP 요청의 2초 제한을 넘기면 503으로 응답하되, 진행 중인 �
 | DB 비밀번호 회전 | 새 연결이 인증에 실패하면 Secret을 다시 읽어 한 번 재시도한다(그 외에도 5분마다 갱신). 기존 연결은 그대로 쓴다. 재시작 불필요 | 회전 + 기존 연결 종료 후 첫 요청 503, 다음 재시도 201 |
 
 배포(T6 · T30) 시 probe는 `livenessProbe: /healthz`, `readinessProbe: /readyz`로 둔다. DB를 보는 `/api/health/db`를 readiness로 쓰면 컷오버 순간 모든 파드가 빠져 트래픽이 끊긴다.
+
+## 첨부 객체의 불변성과 재시도
+
+같은 첨부 ID는 최초 저장한 바이트·Content-Type을 가리킨다. `If-None-Match: *` 조건부
+생성을 사용하며 기존 객체를 덮어쓰지 않는다. 412 응답을 받은 재시도는 실제 객체 내용을
+제한된 크기로 읽고 일치할 때만 DB 메타데이터 처리로 진행한다. ETag를 내용 해시로
+가정하거나 객체 존재만으로 성공 처리하지 않는다. 다른 내용은 409, 인증/접속 실패·409
+조건 경합·지원되지 않는 조건부 요청·잘못된 응답은 503으로 남긴다. 조건 없는 PUT으로
+재시도하지 않는다. 기본 SDK 연결/읽기 제한은 각각 5초, 총 시도는 2회이며 HTTP 전체 기한은 아니다.
+
+DB와 객체 저장소 사이에 분산 트랜잭션은 없다. 객체 생성 뒤 DB 저장이 실패하면 고아
+객체가 남을 수 있으며, 동일 ID·동일 내용 재시도로 복구한다. 기존 객체를 지워서 보상하지
+않는다. 금융 서비스 운영 자격·업무별 접근 통제·고아 객체 수명 정책은 별도다.
+
+앱 외부 writer가 객체를 수정/삭제할 수 있다면 불변성은 유지되지 않는다. 운영자는
+앱 역할의 삭제/덮어쓰기 권한과 버킷 정책을 통제하고, 실제 S3 호환 목적지에서 조건부
+쓰기의 동시성·거부 동작을 검증해야 한다. 이 변경은 버킷 정책을 자동 수정하지 않는다.
+지원하지 않는 목적지를 무조건 PUT으로 우회하는 fallback은 없다.
+
+근거: [AWS S3 조건부 쓰기](https://docs.aws.amazon.com/AmazonS3/latest/userguide/conditional-writes.html),
+[버킷 정책으로 조건부 쓰기 강제](https://docs.aws.amazon.com/AmazonS3/latest/userguide/conditional-writes-enforce.html).
