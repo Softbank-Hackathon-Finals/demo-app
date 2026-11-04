@@ -33,7 +33,7 @@ from app.db_secret import DbCredentials, fetch_db_credentials
 from app.environment import EnvironmentFastAPI
 from app.metrics import HttpMetrics
 from app.sockets import CloseUnconfirmed, SocketSession
-from app.storage import AttachmentStorage
+from app.storage import AttachmentConflict, AttachmentStorage, AttachmentUnavailable
 from app.store import IdempotencyConflict, Store, UnknownAttachment
 
 log = logging.getLogger("demo-chat")
@@ -210,8 +210,17 @@ def create_app(
         filename = Path(file.filename or "file").name[:200]
         content_type = file.content_type or "application/octet-stream"
         object_key = f"attachments/{attachment_id}"
-        # 같은 id로 재시도하면 같은 객체를 덮어쓰므로 멱등이다.
-        await run_in_threadpool(app.state.storage.put, object_key, data, content_type)
+        # Conditional create never overwrites an existing id. A retry must read
+        # back identical bytes/type before it may proceed to DB metadata.
+        try:
+            await run_in_threadpool(app.state.storage.put, object_key, data, content_type)
+        except AttachmentConflict as error:
+            raise HTTPException(409, "attachment id reused with different content") from error
+        except AttachmentUnavailable as error:
+            raise HTTPException(
+                503, "attachment storage outcome is unconfirmed",
+                headers={"Retry-After": str(settings.retry_after)},
+            ) from error
         try:
             saved = await app.state.store.add_attachment(
                 attachment_id, object_key, filename, content_type, len(data)
