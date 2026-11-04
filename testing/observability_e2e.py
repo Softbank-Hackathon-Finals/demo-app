@@ -483,8 +483,6 @@ try:
             )
             return value
 
-        if args.console:
-            result["console_collecting"] = console_view("collecting")
         labels = prom.get(
             prometheus + "/api/v1/series",
             params={"match[]": '{__name__=~"http_server_request_duration.*"}'},
@@ -553,6 +551,10 @@ try:
         result["checks"]["final_display_window_zero_errors"] = all(
             v["error_ratio"] == 0 for v in result["http"].values()
         )
+        # Qualify the bounded T36 window before optional browser startup adds
+        # time. Never refresh the original window timestamp for a later test.
+        if args.console:
+            result["console_collecting"] = console_view("collecting")
         result["websocket_switch"] = asyncio.run(websocket_switch(stack))
         result["checks"]["websocket_switch_verified"] = all(
             result["websocket_switch"]["checks"].values()
