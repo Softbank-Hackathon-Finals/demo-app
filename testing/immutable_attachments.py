@@ -207,7 +207,9 @@ try:
 
     from app.store import Store
 
-    pg_root = Path(tempfile.mkdtemp(prefix="t22-object-metadata-", dir=OUT))
+    # A long evidence directory can exceed macOS's Unix socket path limit.
+    # Allocate a new short directory owned by this trial instead.
+    pg_root = Path(tempfile.mkdtemp(prefix="t22-object-", dir="/tmp"))
     pg_env = dict(base_env, PATH=str(pg_bin) + ":" + base_env["PATH"])
 
     def pg_call(*args):
@@ -235,6 +237,8 @@ try:
     )
     pg_started = True
     admin_dsn = f"host={pg_root} dbname=postgres"
+    with psycopg.connect(admin_dsn) as connection:
+        result["postgres_version_num"] = connection.info.server_version
     pg_call(
         pg_bin / "psql",
         admin_dsn,
@@ -295,7 +299,7 @@ try:
 
     asyncio.run(metadata_trial())
     result["metadata_scope"] = (
-        "native PG17 Unix socket, non-admin role, actual INSERT revoke/grant; real ASGI API and SeaweedFS; no distributed transaction"
+        "native PostgreSQL Unix socket, non-admin role, actual INSERT revoke/grant; real ASGI API and SeaweedFS; no distributed transaction"
     )
     result["source_sha256"] = {
         p: hashlib.sha256((APP / p).read_bytes()).hexdigest()
