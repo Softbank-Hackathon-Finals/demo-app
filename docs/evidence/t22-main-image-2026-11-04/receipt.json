@@ -1,0 +1,45 @@
+{
+  "source_sha": "8d82a9241d3894737778a77d58349e1aee54eca1",
+  "image": "ghcr.io/softbank-hackathon-finals/demo-chat",
+  "digest": "sha256:ca5ce1b24f1deb2e7346643860ff0bb151409c1acec503c105f56d9043a389b6",
+  "platform": "linux/amd64",
+  "scanned_before_publish": true,
+  "registry_pull_verified": true,
+  "runtime_user": "10001",
+  "attestation_manifest_present": true,
+  "runtime_packaging_probe_verified": true,
+  "cluster_pull_verified": false,
+  "anonymous_pull_verified": false,
+  "workflow_run": "https://github.com/Softbank-Hackathon-Finals/demo-chat/actions/runs/41803312129",
+  "sources": [
+    {
+      "artifact": "image-receipt.json",
+      "sha256": "12990b575762044ea82130b1ccef89179eca8c3c0cfc9e1dee3e22fe3c5c1ccb"
+    },
+    {
+      "artifact": "source-manifest.json",
+      "sha256": "5468a133861adb5e7242c5a717f2421a0554672f55bb52eb591d2c3c665a72a8"
+    },
+    {
+      "artifact": "registry-index.json",
+      "sha256": "ca5ce1b24f1deb2e7346643860ff0bb151409c1acec503c105f56d9043a389b6"
+    },
+    {
+      "artifact": "trivy.json",
+      "sha256": "fb666f3ead8f9a24d146c991a636e54afe8ee6f4cb42a453fbb067e8f03a4fd3"
+    }
+  ],
+  "listed_vulnerabilities": 0,
+  "secret_match_count": 0,
+  "scan_policy": {
+    "severity": [
+      "HIGH",
+      "CRITICAL"
+    ],
+    "ignore_unfixed": true,
+    "scanners": [
+      "vuln",
+      "secret"
+    ]
+  }
+}
