@@ -1,0 +1,221 @@
+{
+  "scope": "actual local app/PostgreSQL/OTel/T36 HTTP; Nginx Edge substitute; shared DB; moto AWS APIs; not cloud migration",
+  "status": "FAIL",
+  "duration_per_environment_seconds": 1800,
+  "owned_compose_removed": true,
+  "sources": {
+    "t18_commit": "dea9ced667ead5c2d3b52c1e37723ace61e8e97d",
+    "t36_commit": "020c6c78bdc6133ab0ee15e2a990bb9527b3182f",
+    "t37_commit": "143f5d12b36eda67c500584f808cf50559168132",
+    "demo_commit": "9e0231bbfa94679ac01ba0d5c7a94ab69eeb769d"
+  },
+  "raw_result_sha256": "5b18068950accb5321719a47ac43cabc3ee981418e8ba7bd3c2995a5a5e6372d",
+  "resource_samples_sha256": "7f52e5905638ef9fd68e5bcba0b72b784ff06d56a814b52a421f9c0317ddfbd4",
+  "runs": {
+    "source": {
+      "verdict": "PASS",
+      "warnings": [
+        "NOT_EDGE_MEASURED"
+      ],
+      "sli_usable_for_judgement": false,
+      "load": {
+        "duration_s": 1800.0,
+        "target_write_rps": 50.0,
+        "target_read_rps": 150.0,
+        "achieved_write_rps": 50.0,
+        "achieved_read_rps": 150.0,
+        "attempt_timeout_s": 15,
+        "retry_budget_s": 60,
+        "scheduler_lag_ms": {
+          "p95": 1.999,
+          "max": 219.577
+        }
+      },
+      "requests": {
+        "write": {
+          "attempts": 90000,
+          "http_5xx": 0,
+          "http_4xx": 0,
+          "timeout": 0,
+          "connect": 0,
+          "p95_ms": 8.67
+        },
+        "read": {
+          "attempts": 270000,
+          "http_5xx": 0,
+          "http_4xx": 0,
+          "timeout": 0,
+          "connect": 0,
+          "p95_ms": 5.26
+        }
+      },
+      "http_error_rate": 0.0,
+      "contract_error_rate": 0.0,
+      "p95_ms": 7.507,
+      "write_gap": {
+        "max_ms": 309.647,
+        "from_s": 1570.857856,
+        "to_s": 1571.167503,
+        "position": "between",
+        "acks": 90000
+      },
+      "windows": {
+        "emitted": 180,
+        "requests_in_windows": 360000,
+        "tail_requests_not_in_a_window": 0,
+        "late_requests": 0,
+        "conserved": true,
+        "delivery_failed": 0,
+        "invalid": 0,
+        "continuity_problems": [],
+        "pools_total": {
+          "source": 360000,
+          "target": 0
+        },
+        "unattributed_total": {
+          "timeout": 0,
+          "connect": 0,
+          "other": 0
+        }
+      },
+      "reconciliation": {
+        "verdict": "PASS",
+        "reasons": [],
+        "nfr2": {
+          "failed": 0,
+          "lost": 0,
+          "duplicated": 0
+        },
+        "counts": {
+          "confirmed": 90000,
+          "lost": 0,
+          "duplicated": 0,
+          "failed_not_stored": 0,
+          "failed_but_stored": 0,
+          "integrity_conflict": 0,
+          "content_mismatch": 0,
+          "logical_writes": 90000,
+          "attempts": 90000,
+          "retried": 0,
+          "idempotent_replays": 0,
+          "duplicate_extra_rows": 0,
+          "phantom_rows": 0
+        },
+        "max_attempts": 1,
+        "samples": {}
+      },
+      "whole_run_checks": {
+        "whole_run_http_clean": true,
+        "whole_run_windows_complete": true,
+        "whole_run_generator_healthy": true
+      },
+      "display_reads": {
+        "requests": 1797,
+        "failures": 0
+      }
+    },
+    "target": {
+      "verdict": "PASS",
+      "warnings": [
+        "NOT_EDGE_MEASURED",
+        "HTTP_ERRORS"
+      ],
+      "sli_usable_for_judgement": false,
+      "load": {
+        "duration_s": 1800.0,
+        "target_write_rps": 50.0,
+        "target_read_rps": 150.0,
+        "achieved_write_rps": 50.0,
+        "achieved_read_rps": 150.0,
+        "attempt_timeout_s": 15,
+        "retry_budget_s": 60,
+        "scheduler_lag_ms": {
+          "p95": 2.192,
+          "max": 382.736
+        }
+      },
+      "requests": {
+        "write": {
+          "attempts": 90000,
+          "http_5xx": 0,
+          "http_4xx": 0,
+          "timeout": 0,
+          "connect": 0,
+          "p95_ms": 9.957
+        },
+        "read": {
+          "attempts": 270000,
+          "http_5xx": 0,
+          "http_4xx": 0,
+          "timeout": 0,
+          "connect": 1,
+          "p95_ms": 5.878
+        }
+      },
+      "http_error_rate": 3e-06,
+      "contract_error_rate": 3e-06,
+      "p95_ms": 8.285,
+      "write_gap": {
+        "max_ms": 407.3,
+        "from_s": 1434.247463,
+        "to_s": 1434.654763,
+        "position": "between",
+        "acks": 90000
+      },
+      "windows": {
+        "emitted": 180,
+        "requests_in_windows": 360000,
+        "tail_requests_not_in_a_window": 0,
+        "late_requests": 0,
+        "conserved": true,
+        "delivery_failed": 0,
+        "invalid": 0,
+        "continuity_problems": [],
+        "pools_total": {
+          "source": 0,
+          "target": 359999
+        },
+        "unattributed_total": {
+          "timeout": 0,
+          "connect": 1,
+          "other": 0
+        }
+      },
+      "reconciliation": {
+        "verdict": "PASS",
+        "reasons": [],
+        "nfr2": {
+          "failed": 0,
+          "lost": 0,
+          "duplicated": 0
+        },
+        "counts": {
+          "confirmed": 90000,
+          "lost": 0,
+          "duplicated": 0,
+          "failed_not_stored": 0,
+          "failed_but_stored": 0,
+          "integrity_conflict": 0,
+          "content_mismatch": 0,
+          "logical_writes": 90000,
+          "attempts": 90000,
+          "retried": 0,
+          "idempotent_replays": 0,
+          "duplicate_extra_rows": 0,
+          "phantom_rows": 0
+        },
+        "max_attempts": 1,
+        "samples": {}
+      },
+      "whole_run_checks": {
+        "whole_run_http_clean": false,
+        "whole_run_windows_complete": true,
+        "whole_run_generator_healthy": false
+      },
+      "display_reads": {
+        "requests": 1795,
+        "failures": 0
+      }
+    }
+  }
+}
