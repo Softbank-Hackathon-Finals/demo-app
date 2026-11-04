@@ -29,6 +29,7 @@ parser.add_argument(
     type=Path,
     help="Optional T21 services/console checkout for actual observation projection",
 )
+parser.add_argument("--console-browser", action="store_true", help="Also verify T21 in Chromium and WebKit")
 parser.add_argument(
     "--output", type=Path, required=True, help="New private result directory; must not exist"
 )
@@ -39,6 +40,8 @@ parser.add_argument(
     help="Seconds of 200 requests/s per environment; 30..1800, multiple of 10",
 )
 args = parser.parse_args()
+if args.console_browser and not args.console:
+    parser.error("--console-browser requires --console")
 if not 30 <= args.duration_per_environment <= 1800 or args.duration_per_environment % 10:
     parser.error("duration must be 30..1800 seconds and a multiple of 10")
 os.umask(0o077)
@@ -460,14 +463,17 @@ try:
 
         def console_view(phase):
             console = args.console.resolve()
+            config = {"origin": api, "token": token, "phase": phase}
+            if args.console_browser:
+                config["browser_output"] = str(ROOT / ("console-browser-" + phase))
             proc = subprocess.run(
                 [str(console / ".venv/bin/python"), str(console / "testing/live_observations.py")],
-                input=json.dumps({"origin": api, "token": token, "phase": phase}),
+                input=json.dumps(config),
                 capture_output=True,
                 text=True,
                 env=env,
                 cwd=console,
-                timeout=40,
+                timeout=100 if args.console_browser else 40,
             )
             if not proc.stdout or len(proc.stdout) > 65536:
                 raise RuntimeError("console_qualification_failed")
