@@ -72,6 +72,7 @@ CI의 `platform` 검사에서 기존 Python/Node 검사에 더해 Chromium·WebK
 | `S3_BUCKET` · `S3_ENDPOINT_URL` · `S3_FORCE_PATH_STYLE` | 첨부 저장소 |
 | `ADMIN_TOKEN` | 쓰기 차단 API 토큰. 없으면 API가 꺼진다(404) |
 | `WRITE_BLOCKED` | 시작할 때 쓰기 차단 상태 (`true`/`false`) |
+| `ATTACHMENT_UPLOAD_ENABLED` | 새 첨부 업로드 허용. 기본 `true`, 이전 복사 전 모든 serving 파드에 `false` 적용. 소문자 `true`/`false` 외에는 시작 실패 |
 | `POLL_INTERVAL` · `TX_TIMEOUT_MS` · `WRITE_BLOCK_RETRY_AFTER` | 전파 주기(1초) · 쓰기 트랜잭션 제한(200ms) · `Retry-After`(2초) |
 | `DB_WAIT_SECONDS` | 연결 풀에서 연결을 기다리는 최대 시간(5초). 넘으면 503 |
 
@@ -83,7 +84,7 @@ CI의 `platform` 검사에서 기존 Python/Node 검사에 더해 Chromium·WebK
 | `PUT /api/attachments/{id}` | multipart `file`. 클라이언트가 만든 `id`가 멱등 키다 |
 | `GET /api/messages?after=<id>` · `GET /api/attachments/{id}` | 읽기. 쓰기 차단 중에도 된다 |
 | `WS /ws?after=<id>` | `hello` → `messages`(id 순) · `status`(쓰기 차단 변경). 마지막 id 이후를 DB에서 1초마다 조회한다. 서버 종료 시 1012로 닫는다 |
-| `GET /api/info` | 접속 환경 · 쓰기 차단 상태 |
+| `GET /api/info` | 접속 환경 · 쓰기 차단 상태 · `attachment_upload_enabled` (현재 프로세스의 시작 정책) |
 | `GET /healthz` · `/readyz` | 생존 · 준비. **DB를 보지 않는다** (아래 "운영") |
 | `GET /api/health/db` | DB까지 닿는지(2초 제한). 모니터링용, probe로 쓰지 않는다 |
 
@@ -112,6 +113,33 @@ HTTP 요청의 2초 제한을 넘기면 503으로 응답하되, 진행 중인 �
 메시지 전송과 종료는 연결마다 직렬화한다. 호출 이후 새로 들어오는 연결은 다음 호출의
 대상이고, 응답의 수는 클라이언트 재접속 완료를 의미하지 않는다. 앱은 파드마다 단일
 프로세스로 실행하고 Executor는 모든 출발지 파드를 호출한다.
+
+### 첨부파일 복사 중 새 업로드 제한 (T8 → T22/T28 인계)
+
+`ATTACHMENT_UPLOAD_ENABLED=false`로 시작한 프로세스는 `PUT /api/attachments/*`를
+multipart 본문을 읽기 전에 403으로 거부한다. DB 메타데이터·S3 객체에 접근하지 않는다.
+기존 첨부 다운로드와 텍스트 메시지 쓰기는 유지한다. 전체 쓰기 차단 스위치는 별개이고,
+`/admin/write-block`을 해제해도 이 시작 정책이 바뀌지 않는다. 정책을 바꾸려면 재배포한다.
+일시 재시도용 503이 아닌 정책 거부이므로 `Retry-After`를 반환하지 않는다.
+
+`/api/info`와 WebSocket `hello`/`status`에 현재 프로세스의 허용 여부를 덧붙인다.
+화면은 허용이 확인되기 전 첨부 선택을 막고, 연결 대상이 차단 상태로 바뀌면 아직 선택만 한
+파일과 미리보기를 비운다. 이미 전송을 시도한 대기 항목은 자동 삭제하거나 새 멱등 키로
+다시 보내지 않는다. 서버의 거부가 최종 경계이며 UI 조작으로 우회할 수 없다.
+
+이 기능 하나가 **클러스터 전체의 업로드 종료·복사 무결성을 증명하지는 않는다.**
+T8/T12/T28 실행 경로는 다음을 별도로 확인해야 한다.
+
+1. 출발지·목적지의 모든 실제 serving 파드에 같은 정책을 적용하고, 파드 UID·이미지 digest·
+   `/api/info`의 값을 대조한다. 공유 주소 한 번 조회로 모든 파드의 상태를 대신하지 않는다.
+2. 이전 버전 파드와 실행 중인 업로드를 종료·배출하고 다른 버킷 writer도 통제한다.
+   이미 시작된 요청, DB 실패 후 남은 객체, 직접 S3 쓰기는 이 시작 정책이 통제하지 않는다.
+3. 그 뒤 T8 inventory/copy를 수행하고 최종 메타데이터·객체 내용 대조 결과를 게이트에 연결한다.
+4. 대상 검증과 전환 승인 뒤 대상 업로드를 다시 열지 결정한다. 출발지는 복귀 정책에 따라
+   계속 제한한다. 등록되지 않은 writer나 배출 상태가 불명확하면 복사 완료로 판정하지 않는다.
+
+로컬 시험은 본문 미소비·직접 업로드 거부·기존 읽기/채팅 유지·시작 설정 오타 거부를
+검증한다. 팀 배포 설정, 실제 S3/SeaweedFS 복사, 모든 파드 배출은 별도 인수 대상이다.
 
 ## 운영
 
