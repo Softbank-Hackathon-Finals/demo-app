@@ -47,6 +47,24 @@ def scan_clean(report):
         raise Failure("scan_has_findings")
 
 
+def scan_summary(report):
+    """Expose package advisories and counts, never matched secrets or source snippets."""
+    results = report.get("Results")
+    if not isinstance(results, list) or not results or not all(isinstance(r, dict) for r in results):
+        return {"scan_report": "unavailable"}
+    vulnerabilities = [v for r in results for v in r.get("Vulnerabilities", [])]
+    fields = ("VulnerabilityID", "PkgName", "InstalledVersion", "FixedVersion", "Severity")
+    return {
+        "scan_report": "available",
+        "vulnerability_count": len(vulnerabilities),
+        "vulnerabilities": [{k: str(v.get(k, ""))[:256] for k in fields} for v in vulnerabilities[:200]],
+        "vulnerability_list_truncated": len(vulnerabilities) > 200,
+        "secret_match_count": sum(len(r.get("Secrets", [])) for r in results),
+        "misconfiguration_count": sum(len(r.get("Misconfigurations", [])) for r in results),
+        "raw_matches_or_snippets_included": False,
+    }
+
+
 def probe_complete(output):
     """Require the expected self-report; candidate imports can forge this output."""
     expected = {
@@ -108,6 +126,12 @@ def main():
     root = Path(os.environ["RUNNER_TEMP"])
     bundle = root / "candidate-bundle"
     phase = sys.argv[1]
+    if phase == "scan-summary":
+        path = root / "candidate-trivy.json"
+        summary = scan_summary(read(path)) if path.is_file() else {"scan_report": "unavailable"}
+        write(root / "candidate-scan-summary.json", summary)
+        print(json.dumps(summary))
+        return
     digest = os.environ["BUILD_DIGEST"]
     source_sha = os.environ["SOURCE_SHA"]
     if phase == "seal":

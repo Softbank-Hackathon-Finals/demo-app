@@ -141,6 +141,29 @@ def test_scan_requires_python_coverage_and_zero_findings():
             image.scan_clean(invalid)
 
 
+def test_scan_failure_summary_omits_secret_matches_and_source_snippets():
+    report = {"Results": [{"Target": "private-source-path", "Secrets": [
+        {"Match": "synthetic-secret-value", "Code": {"Lines": [{"Content": "synthetic-source"}]}}],
+        "Vulnerabilities": [{"VulnerabilityID": "CVE-2026-109518", "PkgName": "apt",
+                             "InstalledVersion": "3.0.3", "FixedVersion": "3.0.4", "Severity": "HIGH",
+                             "Description": "private-extra-field"}]}]}
+    summary = image.scan_summary(report)
+    assert summary["secret_match_count"] == 1
+    assert summary["vulnerability_count"] == 1
+    assert summary["vulnerabilities"][0]["FixedVersion"] == "3.0.4"
+    rendered = json.dumps(summary)
+    for forbidden in ("private-source-path", "synthetic-secret-value", "synthetic-source", "private-extra-field"):
+        assert forbidden not in rendered
+    # Diagnostics do not change the publication gate's rejection.
+    with pytest.raises(image.Failure):
+        image.scan_clean(report)
+
+
+@pytest.mark.parametrize("report", [{}, {"Results": []}, {"Results": [None]}])
+def test_missing_scan_report_is_not_reported_clean(report):
+    assert image.scan_summary(report) == {"scan_report": "unavailable"}
+
+
 def test_every_source_and_run_binding_is_checked():
     env = dict(BASE_SHA="a" * 40, SOURCE_SHA="b" * 40, WORKFLOW_SHA="c" * 40,
                DIFF_SHA256="d" * 64, REQUEST_ID="fixture", CANDIDATE_PR="42",
