@@ -28,7 +28,12 @@ The three jobs preserve these boundaries:
    provenance/SBOM, scan HIGH/CRITICAL fixable vulnerabilities and secrets, then run
    the trusted packaging probe in a network-disabled, read-only, non-root container
    without host mounts. The immutable Actions artifact binds repository, PR,
-   base/source/workflow SHA, diff SHA, request and run/attempt to the image digest.
+   base/source/workflow SHA, diff SHA, request and producer run/attempt to the image digest.
+   The probe imports candidate code in the same process: even complete JSON can be
+   forged by that code. It is recorded as `candidate_process_self_report`, with
+   `runtime_packaging_probe_verified=false`, and is only a smoke signal. Scanner
+   findings, OCI configuration and byte checks are separate observations. Independent
+   application/health acceptance requires T15's subsequent execution evidence.
 2. **GHCR:** fresh runner checks the exact run's artifact ID, receipt binding and
    every OCI blob/descriptor, rescans, and requires the existing package to be
    private. It never executes the candidate image. Copy and independent download
@@ -39,7 +44,13 @@ The three jobs preserve these boundaries:
    An identical immutable tag is reused; a conflicting tag fails closed. The final
    download must match all source bytes.
 
-Both registries use `candidate-RUN_ID-ATTEMPT`. Consumers take the receipt's full
+Both registries use `candidate-RUN_ID-BUILD_ATTEMPT`. A failed publisher-only rerun
+uses the successful build's trusted artifact ID, producer attempt and digest;
+it does not rebuild or change the destination tag. The publisher's current attempt
+is a separate receipt field. ECR readback recovers an already-written identical tag
+without another write. Different runs, producer bindings and contents still fail
+closed. Rerunning all jobs creates a new build attempt and a new publication tag.
+Consumers take the receipt's full
 digest: T15 rehearses it and T31 deploys that same digest, without rebuilding or
 merging the candidate to bypass this path. Registry delivery alone does not prove
 T15 rehearsal or T31 deployment; their receipt fields remain false until their

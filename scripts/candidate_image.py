@@ -48,6 +48,7 @@ def scan_clean(report):
 
 
 def probe_complete(output):
+    """Require the expected self-report; candidate imports can forge this output."""
     expected = {
         "runtime_uid": 10001,
         "installer_modules_absent": True,
@@ -93,7 +94,13 @@ def binding(packet, env):
                 "request_id": env["REQUEST_ID"], "pull_request": int(env["CANDIDATE_PR"])}
     if any(packet.get(k) != v for k, v in expected.items()):
         raise Failure("candidate_binding_mismatch")
-    if packet.get("workflow_run_id") != env["GITHUB_RUN_ID"] or packet.get("workflow_run_attempt") != env["GITHUB_RUN_ATTEMPT"]:
+    producer = env["BUILD_RUN_ATTEMPT"]
+    current = env["GITHUB_RUN_ATTEMPT"]
+    if (not re.fullmatch(r"[1-9][0-9]*", producer)
+            or not re.fullmatch(r"[1-9][0-9]*", current)
+            or int(producer) > int(current)
+            or packet.get("workflow_run_id") != env["GITHUB_RUN_ID"]
+            or packet.get("workflow_run_attempt") != producer):
         raise Failure("candidate_run_mismatch")
 
 
@@ -120,16 +127,23 @@ def main():
         probe_complete(output)
         packet.update(image=IMAGE, digest=digest, scanned_before_publish=True,
                       vulnerability_count=0, secret_match_count=0,
-                      runtime_packaging_probe_verified=True,
+                      runtime_packaging_probe_verified=False,
+                      runtime_probe_evidence="candidate_process_self_report",
+                      runtime_probe_self_report="pass",
                       runtime_probe_in_build_job_only=True)
         write(bundle / "candidate-receipt.json", packet)
         print("candidate_build_scan=PASS")
         return
     packet = read(bundle / "candidate-receipt.json")
     binding(packet, os.environ)
+    artifact_id = os.environ["BUILD_ARTIFACT_ID"]
+    if not re.fullmatch(r"[1-9][0-9]*", artifact_id):
+        raise Failure("build_artifact_identity_missing")
     if (packet.get("digest") != digest or packet.get("image") != IMAGE
             or packet.get("scanned_before_publish") is not True
-            or packet.get("runtime_packaging_probe_verified") is not True):
+            or packet.get("runtime_packaging_probe_verified") is not False
+            or packet.get("runtime_probe_evidence") != "candidate_process_self_report"
+            or packet.get("runtime_probe_self_report") != "pass"):
         raise Failure("publication_binding_mismatch")
     if hashlib.sha256((bundle / "candidate.diff").read_bytes()).hexdigest() != packet["diff_sha256"]:
         raise Failure("candidate_diff_mismatch")
@@ -139,7 +153,7 @@ def main():
         return
     scan_clean(read(root / "candidate-trivy.json"))
     auth = Path(os.environ.get("DOCKER_CONFIG", str(Path.home() / ".docker"))) / "config.json"
-    tag = "candidate-" + os.environ["GITHUB_RUN_ID"] + "-" + os.environ["GITHUB_RUN_ATTEMPT"]
+    tag = "candidate-" + packet["workflow_run_id"] + "-" + packet["workflow_run_attempt"]
     previous = None
     if phase == "ghcr":
         destination = IMAGE
@@ -172,6 +186,7 @@ def main():
     if verify_layout(target, digest, index) != source_blobs:
         raise Failure("destination_byte_mismatch")
     result = {**packet, "destination": "ghcr-private" if phase == "ghcr" else "aws-ecr-private",
+              "build_artifact_id": artifact_id, "publisher_run_attempt": os.environ["GITHUB_RUN_ATTEMPT"],
               "tag": tag, "all_blobs_identical": True, "verified_blob_count": len(source_blobs),
               "candidate_executed_in_publisher": False, "rebuilt": False,
               "t15_rehearsal_verified": False, "t31_deployment_verified": False}

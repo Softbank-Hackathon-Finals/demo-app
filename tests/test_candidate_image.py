@@ -1,7 +1,10 @@
 import copy
 import hashlib
 import json
+import shutil
 import subprocess
+import sys
+from pathlib import Path
 
 import pytest
 
@@ -141,7 +144,7 @@ def test_scan_requires_python_coverage_and_zero_findings():
 def test_every_source_and_run_binding_is_checked():
     env = dict(BASE_SHA="a" * 40, SOURCE_SHA="b" * 40, WORKFLOW_SHA="c" * 40,
                DIFF_SHA256="d" * 64, REQUEST_ID="fixture", CANDIDATE_PR="42",
-               GITHUB_RUN_ID="123", GITHUB_RUN_ATTEMPT="2")
+               GITHUB_RUN_ID="123", GITHUB_RUN_ATTEMPT="2", BUILD_RUN_ATTEMPT="2")
     packet = dict(repository=source.REPOSITORY, base_sha=env["BASE_SHA"],
                   source_sha=env["SOURCE_SHA"], workflow_sha=env["WORKFLOW_SHA"],
                   diff_sha256=env["DIFF_SHA256"], request_id="fixture", pull_request=42,
@@ -201,3 +204,99 @@ def test_oci_bytes_revision_user_and_link_are_checked(layout):
     (root / "blobs/sha256" / config[7:]).write_text("corrupted")
     with pytest.raises(image.Failure, match="oci_blob_digest_mismatch"):
         image.inspect(root, index, "a" * 40)
+
+
+@pytest.fixture
+def bundle(layout, tmp_path, monkeypatch):
+    root, index, _ = layout
+    packet_root = tmp_path / "candidate-bundle"
+    packet_root.mkdir()
+    shutil.copytree(root, packet_root / "layout")
+    diff = b"synthetic candidate diff\n"
+    (packet_root / "candidate.diff").write_bytes(diff)
+    env = dict(RUNNER_TEMP=str(tmp_path), BASE_SHA="b" * 40, SOURCE_SHA="a" * 40,
+               WORKFLOW_SHA="c" * 40, DIFF_SHA256=hashlib.sha256(diff).hexdigest(),
+               REQUEST_ID="fixture", CANDIDATE_PR="42", BUILD_DIGEST=index,
+               GITHUB_RUN_ID="123", GITHUB_RUN_ATTEMPT="1", BUILD_RUN_ATTEMPT="1",
+               BUILD_ARTIFACT_ID="456", EXPECTED_ACCOUNT_ID="123456789012",
+               PRIVATE_ECR_REPOSITORY="123456789012.dkr.ecr.ap-northeast-2.amazonaws.com/bravo/demo-chat")
+    for key, value in env.items():
+        monkeypatch.setenv(key, value)
+    packet = dict(repository=source.REPOSITORY, base_sha=env["BASE_SHA"], source_sha=env["SOURCE_SHA"],
+                  workflow_sha=env["WORKFLOW_SHA"], diff_sha256=env["DIFF_SHA256"],
+                  request_id="fixture", pull_request=42)
+    image.write(packet_root / "candidate-source.json", packet)
+    image.write(tmp_path / "candidate-trivy.json", {"Results": [{"Type": "python-pkg", "Class": "lang-pkgs"}]})
+    return packet_root, packet, index
+
+
+def test_forged_probe_stdout_cannot_issue_independent_verification(bundle, monkeypatch):
+    root, _, _ = bundle
+    expected = dict(runtime_uid=10001, installer_modules_absent=True, uv_absent=True,
+                    app_import_and_health_handlers="pass", external_service_integration_tested=False)
+    # A candidate can emit the whole expected report and exit before any checks.
+    forged = subprocess.check_output([sys.executable, "-c",
+        "print(" + repr(json.dumps(expected)) + "); raise SystemExit(0)"], text=True)
+    monkeypatch.setattr(image, "run", lambda *args, **kwargs: forged)
+    monkeypatch.setattr(sys, "argv", ["candidate_image.py", "seal"])
+    image.main()
+    receipt = image.read(root / "candidate-receipt.json")
+    assert receipt["runtime_packaging_probe_verified"] is False
+    assert receipt["runtime_probe_evidence"] == "candidate_process_self_report"
+    assert receipt["runtime_probe_self_report"] == "pass"
+
+
+@pytest.mark.parametrize("phase", ["ghcr", "ecr"])
+def test_publisher_partial_rerun_keeps_producer_digest_and_tag(bundle, monkeypatch, phase):
+    root, packet, digest_value = bundle
+    packet.update(workflow_run_id="123", workflow_run_attempt="1", image=image.IMAGE,
+                  digest=digest_value, scanned_before_publish=True,
+                  runtime_packaging_probe_verified=False,
+                  runtime_probe_evidence="candidate_process_self_report", runtime_probe_self_report="pass")
+    image.write(root / "candidate-receipt.json", packet)
+    monkeypatch.setattr(sys, "argv", ["candidate_image.py", phase])
+    effects = []
+    reads = []
+
+    def inventory(tag):
+        reads.append(tag)
+        return digest_value if effects else None
+
+    def transport(args, operation, **kwargs):
+        if operation == "identity":
+            return json.dumps({"Account": "123456789012",
+                               "Arn": "arn:aws:sts::123456789012:assumed-role/bravo-private-image-publisher/fixture"})
+        if operation in ("ghcr_download", "destination_download"):
+            shutil.copytree(root / "layout", Path(args[-1][4:]), dirs_exist_ok=True)
+        elif operation == "publish":
+            effects.append(args[-1])
+            if len(effects) == 1:
+                # ECR write committed, but the client received no success response.
+                raise image.Failure("publish_response_lost")
+            (root.parent / "pushed-digest").write_text(digest_value)
+        else:
+            raise AssertionError(operation)
+        return ""
+
+    monkeypatch.setattr(image, "existing_target_digest", inventory)
+    monkeypatch.setattr(image, "run", transport)
+    with pytest.raises(image.Failure, match="publish_response_lost"):
+        image.main()
+    monkeypatch.setenv("GITHUB_RUN_ATTEMPT", "2")
+    image.main()
+    receipt = image.read(root.parent / (phase + "-candidate-receipt.json"))
+    assert receipt["tag"] == "candidate-123-1"
+    assert receipt["digest"] == digest_value
+    assert receipt["workflow_run_attempt"] == "1"
+    assert receipt["publisher_run_attempt"] == "2"
+    assert receipt["build_artifact_id"] == "456"
+    assert receipt["rebuilt"] is False
+    assert all(effect.endswith(":candidate-123-1") for effect in effects)
+    if phase == "ecr":
+        assert len(effects) == 1
+        assert reads == ["candidate-123-1", "candidate-123-1"]
+    count = len(effects)
+    monkeypatch.setenv("GITHUB_RUN_ID", "other-run")
+    with pytest.raises(image.Failure, match="candidate_run_mismatch"):
+        image.main()
+    assert len(effects) == count

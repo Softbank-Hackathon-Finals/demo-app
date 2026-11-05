@@ -50,7 +50,11 @@ jobs:
     outputs:
       digest: ${{ steps.build.outputs.digest }}
       artifact_id: ${{ steps.artifact.outputs.artifact-id }}
+      build_attempt: ${{ steps.identity.outputs.attempt }}
     steps:
+      - name: Bind the producer attempt independently of publisher retries
+        id: identity
+        run: echo "attempt=$GITHUB_RUN_ATTEMPT" >> "$GITHUB_OUTPUT"
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ github.workflow_sha }}
@@ -101,6 +105,7 @@ jobs:
       - name: Check packaging in an isolated build-job container and seal the receipt
         env:
           BUILD_DIGEST: ${{ steps.build.outputs.digest }}
+          BUILD_RUN_ATTEMPT: ${{ steps.identity.outputs.attempt }}
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq skopeo
@@ -126,6 +131,8 @@ jobs:
       packages: write
     env:
       BUILD_DIGEST: ${{ needs.build.outputs.digest }}
+      BUILD_RUN_ATTEMPT: ${{ needs.build.outputs.build_attempt }}
+      BUILD_ARTIFACT_ID: ${{ needs.build.outputs.artifact_id }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -183,6 +190,8 @@ jobs:
       id-token: write
     env:
       BUILD_DIGEST: ${{ needs.build.outputs.digest }}
+      BUILD_RUN_ATTEMPT: ${{ needs.build.outputs.build_attempt }}
+      BUILD_ARTIFACT_ID: ${{ needs.build.outputs.artifact_id }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
