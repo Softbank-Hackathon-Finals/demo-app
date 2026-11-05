@@ -57,6 +57,16 @@ T15 rehearsal or T31 deployment; their receipt fields remain false until their
 respective owners supply execution evidence. Source/diff artifacts have a 14-day
 retention period and contain no authentication files or raw scanner findings.
 
+If an image scan fails, each job still logs an allowlisted package-advisory summary
+and counts. Secret matches, code snippets, target paths and free-form descriptions
+are omitted. This diagnostic step does not suppress or relax the failing scan.
+The 2026-11-05 first candidate run stopped at the image scan before publication.
+A local reproduction found apt/libapt-pkg7.0 3.0.3 in the previous base. The refreshed pinned linux/amd64 Python base
+contains 3.0.4, the fixed version in [Debian DSA-6607-1](https://lists.debian.org/debian-security-announce/2026/msg00526.html).
+The original run did not retain its detailed report; this cause was reproduced by
+rebuilding the same pinned candidate and recipe locally, not by rescanning its exact
+discarded Actions digest. The replacement still needs its own build and scan.
+
 The exporter uses an [OCI directory](https://docs.docker.com/build/exporters/oci-docker/)
 and [Trivy OCI image scanning](https://github.com/aquasecurity/trivy/blob/main/docs/guide/target/container_image.md).
 Attestations retain the existing image-manifest representation (`oci-artifact=false`)

@@ -91,6 +91,7 @@ jobs:
             org.opencontainers.image.revision=${{ env.SOURCE_SHA }}
           tags: demo-candidate:build
       - name: Scan the built OCI bytes
+        id: scan
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           scan-type: image
@@ -102,6 +103,9 @@ jobs:
           format: json
           output: ${{ runner.temp }}/candidate-trivy.json
           timeout: 10m
+      - name: Report package advisories and counts without secret matches
+        if: always() && steps.scan.outcome != 'skipped'
+        run: python3 scripts/candidate_image.py scan-summary
       - name: Check packaging in an isolated build-job container and seal the receipt
         env:
           BUILD_DIGEST: ${{ steps.build.outputs.digest }}
@@ -146,6 +150,7 @@ jobs:
       - name: Validate exact-run source binding and every OCI blob
         run: python3 scripts/candidate_image.py verify
       - name: Scan again on the fresh publisher without executing candidate code
+        id: scan
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           scan-type: image
@@ -157,6 +162,9 @@ jobs:
           format: json
           output: ${{ runner.temp }}/candidate-trivy.json
           timeout: 10m
+      - name: Report package advisories and counts without secret matches
+        if: always() && steps.scan.outcome != 'skipped'
+        run: python3 scripts/candidate_image.py scan-summary
       - run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq skopeo
@@ -204,6 +212,7 @@ jobs:
           merge-multiple: true
       - run: python3 scripts/candidate_image.py verify
       - name: Recheck the exact bytes before obtaining AWS publisher credentials
+        id: scan
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           scan-type: image
@@ -215,6 +224,9 @@ jobs:
           format: json
           output: ${{ runner.temp }}/candidate-trivy.json
           timeout: 10m
+      - name: Report package advisories and counts without secret matches
+        if: always() && steps.scan.outcome != 'skipped'
+        run: python3 scripts/candidate_image.py scan-summary
       - run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq skopeo
