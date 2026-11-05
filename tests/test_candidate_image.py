@@ -152,6 +152,18 @@ def test_every_source_and_run_binding_is_checked():
             image.binding({**packet, key: "different"}, env)
 
 
+def test_zero_exit_alone_cannot_claim_a_completed_runtime_probe():
+    expected = dict(runtime_uid=10001, installer_modules_absent=True, uv_absent=True,
+                    app_import_and_health_handlers="pass", external_service_integration_tested=False)
+    image.probe_complete(json.dumps(expected) + "\n")
+    for output in ("", "{}", "[]", "null", "PASS", json.dumps({**expected, "runtime_uid": 0}),
+                   json.dumps({**expected, "app_import_and_health_handlers": "fail"}),
+                   json.dumps({**expected, "installer_modules_absent": 1}),
+                   json.dumps(expected) + "\n" + json.dumps(expected)):
+        with pytest.raises(image.Failure):
+            image.probe_complete(output)
+
+
 @pytest.fixture
 def layout(tmp_path):
     root = tmp_path / "layout"

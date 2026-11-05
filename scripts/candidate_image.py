@@ -1,4 +1,4 @@
-"""Validate/copy candidate OCI bytes on fresh trusted runners; never run the image."""
+"""Seal candidates in the build job; verify/copy bytes without execution in publishers."""
 
 import hashlib
 import json
@@ -45,6 +45,22 @@ def scan_clean(report):
         raise Failure("python_scan_coverage_missing")
     if any(r.get("Vulnerabilities") or r.get("Secrets") or r.get("Misconfigurations") for r in results):
         raise Failure("scan_has_findings")
+
+
+def probe_complete(output):
+    expected = {
+        "runtime_uid": 10001,
+        "installer_modules_absent": True,
+        "uv_absent": True,
+        "app_import_and_health_handlers": "pass",
+        "external_service_integration_tested": False,
+    }
+    try:
+        result = json.loads(output)
+    except (ValueError, TypeError):
+        raise Failure("runtime_probe_result_missing") from None
+    if result != expected or any(type(result[k]) is not type(v) for k, v in expected.items()):
+        raise Failure("runtime_probe_result_incomplete")
 
 
 def inspect(path, digest, source_sha):
@@ -97,10 +113,11 @@ def main():
         run(["skopeo", "copy", "--override-os", "linux", "--override-arch", "amd64",
              "oci:" + str(bundle / "layout"), "docker-daemon:demo-candidate:probe"], "load_probe")
         probe = Path("scripts/check_runtime_image.py").read_text()
-        run(["docker", "run", "--rm", "--network", "none", "--read-only", "--cap-drop=ALL",
+        output = run(["docker", "run", "--rm", "--network", "none", "--read-only", "--cap-drop=ALL",
              "--security-opt=no-new-privileges", "--pids-limit=128", "--memory=512m", "-i",
              "--entrypoint", ".venv/bin/python", "demo-candidate:probe", "-"],
             "isolated_runtime_probe", input_text=probe)
+        probe_complete(output)
         packet.update(image=IMAGE, digest=digest, scanned_before_publish=True,
                       vulnerability_count=0, secret_match_count=0,
                       runtime_packaging_probe_verified=True,
