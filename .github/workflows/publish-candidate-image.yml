@@ -1,0 +1,238 @@
+name: publish-candidate-image
+
+on:
+  workflow_dispatch:
+    inputs:
+      candidate_pr:
+        description: Authorized unmerged demo-chat PR number
+        type: string
+        required: true
+      base_sha:
+        description: Full main ancestor SHA used to calculate the candidate diff
+        type: string
+        required: true
+      source_sha:
+        description: Exact unmerged PR head SHA
+        type: string
+        required: true
+      diff_sha256:
+        description: SHA256 of git diff --binary --full-index --no-ext-diff --no-renames BASE SOURCE --
+        type: string
+        required: true
+      request_id:
+        description: Authorized request ID (lowercase letters, digits and hyphens)
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: demo-chat-candidate-publication
+  cancel-in-progress: false
+
+env:
+  CANDIDATE_PR: ${{ inputs.candidate_pr }}
+  BASE_SHA: ${{ inputs.base_sha }}
+  SOURCE_SHA: ${{ inputs.source_sha }}
+  DIFF_SHA256: ${{ inputs.diff_sha256 }}
+  REQUEST_ID: ${{ inputs.request_id }}
+  WORKFLOW_SHA: ${{ github.workflow_sha }}
+  AWS_REGION: ap-northeast-2
+
+jobs:
+  build:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    outputs:
+      digest: ${{ steps.build.outputs.digest }}
+      artifact_id: ${{ steps.artifact.outputs.artifact-id }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.workflow_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Export the exact PR as data with the trusted build recipe
+        run: |
+          python3 -c 'import os,re; assert re.fullmatch(r"[1-9][0-9]{0,9}", os.environ["CANDIDATE_PR"])'
+          git fetch --no-tags origin "refs/pull/$CANDIDATE_PR/head:refs/candidates/$CANDIDATE_PR"
+          python3 scripts/prepare_candidate_source.py --base "$BASE_SHA" --source "$SOURCE_SHA" \
+            --workflow "$WORKFLOW_SHA" --pull "$CANDIDATE_PR" --diff "$DIFF_SHA256" \
+            --request "$REQUEST_ID" --context "$RUNNER_TEMP/candidate-bundle/context"
+      - name: Reject secrets in the exported source and diff before building
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: fs
+          scan-ref: ${{ runner.temp }}/candidate-bundle
+          scanners: secret
+          exit-code: '1'
+          format: json
+          output: ${{ runner.temp }}/source-secret-scan.json
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - name: Build once without registry or AWS publisher credentials
+        id: build
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: ${{ runner.temp }}/candidate-bundle/context
+          platforms: linux/amd64
+          outputs: type=oci,dest=${{ runner.temp }}/candidate-bundle/layout,tar=false,oci-artifact=false
+          provenance: mode=max
+          sbom: true
+          labels: |
+            org.opencontainers.image.source=https://github.com/Softbank-Hackathon-Finals/demo-chat
+            org.opencontainers.image.revision=${{ env.SOURCE_SHA }}
+          tags: demo-candidate:build
+      - name: Scan the built OCI bytes
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: image
+          input: ${{ runner.temp }}/candidate-bundle/layout
+          scanners: vuln,secret
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: '1'
+          format: json
+          output: ${{ runner.temp }}/candidate-trivy.json
+          timeout: 10m
+      - name: Check packaging in an isolated build-job container and seal the receipt
+        env:
+          BUILD_DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq skopeo
+          python3 scripts/candidate_image.py seal
+      - name: Carry only the verified OCI bundle and binding to fresh runners
+        id: artifact
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: candidate-bundle-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/candidate-bundle/layout
+            ${{ runner.temp }}/candidate-bundle/candidate-receipt.json
+            ${{ runner.temp }}/candidate-bundle/candidate.diff
+          if-no-files-found: error
+          retention-days: 14
+
+  ghcr:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      contents: read
+      packages: write
+    env:
+      BUILD_DIGEST: ${{ needs.build.outputs.digest }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.workflow_sha }}
+          persist-credentials: false
+      - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        with:
+          artifact-ids: ${{ needs.build.outputs.artifact_id }}
+          path: ${{ runner.temp }}/candidate-bundle
+          merge-multiple: true
+      - name: Validate exact-run source binding and every OCI blob
+        run: python3 scripts/candidate_image.py verify
+      - name: Scan again on the fresh publisher without executing candidate code
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: image
+          input: ${{ runner.temp }}/candidate-bundle/layout
+          scanners: vuln,secret
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: '1'
+          format: json
+          output: ${{ runner.temp }}/candidate-trivy.json
+          timeout: 10m
+      - run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq skopeo
+      - name: Require the existing GHCR package to remain private
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh api orgs/Softbank-Hackathon-Finals/packages/container/demo-chat \
+            --jq 'if .visibility == "private" then "package_visibility=private" else error("package_must_be_private") end'
+      - uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Publish private GHCR bytes and compare digest readback
+        run: python3 scripts/candidate_image.py ghcr
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: candidate-ghcr-receipt-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/ghcr-candidate-receipt.json
+          if-no-files-found: error
+          retention-days: 14
+
+  ecr:
+    needs: [build, ghcr]
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      contents: read
+      packages: read
+      id-token: write
+    env:
+      BUILD_DIGEST: ${{ needs.build.outputs.digest }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.workflow_sha }}
+          persist-credentials: false
+      - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        with:
+          artifact-ids: ${{ needs.build.outputs.artifact_id }}
+          path: ${{ runner.temp }}/candidate-bundle
+          merge-multiple: true
+      - run: python3 scripts/candidate_image.py verify
+      - name: Recheck the exact bytes before obtaining AWS publisher credentials
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: image
+          input: ${{ runner.temp }}/candidate-bundle/layout
+          scanners: vuln,secret
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: '1'
+          format: json
+          output: ${{ runner.temp }}/candidate-trivy.json
+          timeout: 10m
+      - run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq skopeo
+      - uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: ${{ secrets.PRIVATE_IMAGE_PUBLISH_ROLE_ARN }}
+          allowed-account-ids: ${{ secrets.PRIVATE_IMAGE_ACCOUNT_ID }}
+          aws-region: ap-northeast-2
+          role-duration-seconds: 900
+          role-session-name: candidate-${{ github.run_id }}
+          mask-aws-account-id: true
+      - uses: aws-actions/amazon-ecr-login@03f1aad4c6c7ffd436567f42f9384779290529bd # v2.1.7
+        with:
+          mask-password: 'true'
+      - name: Copy the verified GHCR bytes to private ECR without rebuilding
+        env:
+          PRIVATE_ECR_REPOSITORY: ${{ secrets.PRIVATE_IMAGE_REPOSITORY_URI }}
+          EXPECTED_ACCOUNT_ID: ${{ secrets.PRIVATE_IMAGE_ACCOUNT_ID }}
+        run: python3 scripts/candidate_image.py ecr
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: candidate-ecr-receipt-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/ecr-candidate-receipt.json
+          if-no-files-found: error
+          retention-days: 14
