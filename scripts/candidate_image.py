@@ -4,10 +4,14 @@ import hashlib
 import json
 import os
 import re
+import shutil
 import stat
 import subprocess
 import sys
 from pathlib import Path
+
+ARCHITECTURES = ("amd64", "arm64")
+PLATFORMS = ["linux/" + arch for arch in ARCHITECTURES]
 
 if __package__:
     from .private_image_transfer import (
@@ -95,14 +99,63 @@ def inspect(path, digest, source_sha):
         raise Failure("layout_root_mismatch")
     inventory = verify_layout(path, digest, index)
     platforms = index.get("manifests", [])
-    runtime = [m for m in platforms if m.get("platform") == {"architecture": "amd64", "os": "linux"}]
-    if len(runtime) != 1 or not any(m.get("annotations", {}).get("vnd.docker.reference.type") == "attestation-manifest" for m in platforms):
+    runtimes = runtime_manifests(index)
+    attestations = [m for m in platforms if m.get("annotations", {}).get("vnd.docker.reference.type") == "attestation-manifest"]
+    if len(platforms) != 4 or len(attestations) != 2:
         raise Failure("runtime_or_attestation_missing")
-    manifest = read(path / "blobs/sha256" / runtime[0]["digest"][7:])
-    config = read(path / "blobs/sha256" / manifest["config"]["digest"][7:])["config"]
-    if config.get("User") != "10001" or config.get("Labels", {}).get("org.opencontainers.image.revision") != source_sha:
-        raise Failure("runtime_config_mismatch")
+    for arch, runtime in runtimes.items():
+        bound = [m for m in attestations if m["annotations"].get("vnd.docker.reference.digest") == runtime["digest"]]
+        if len(bound) != 1 or bound[0].get("platform") != {"architecture": "unknown", "os": "unknown"}:
+            raise Failure("runtime_attestation_binding_mismatch")
+        manifest = read(path / "blobs/sha256" / runtime["digest"][7:])
+        config = read(path / "blobs/sha256" / manifest["config"]["digest"][7:])
+        if (config.get("architecture") != arch or config.get("os") != "linux"
+                or config.get("config", {}).get("User") != "10001"
+                or config.get("config", {}).get("Labels", {}).get("org.opencontainers.image.revision") != source_sha):
+            raise Failure("runtime_config_mismatch")
     return index, inventory
+
+
+def runtime_manifests(index):
+    runtimes = {}
+    for arch in ARCHITECTURES:
+        matches = [m for m in index.get("manifests", [])
+                   if m.get("platform", {}).get("os") == "linux"
+                   and m["platform"].get("architecture") == arch
+                   and m["platform"].get("variant", "") in (("", "v8") if arch == "arm64" else ("",))]
+        if len(matches) != 1:
+            raise Failure("runtime_platform_missing_or_duplicate")
+        runtimes[arch] = matches[0]
+    return runtimes
+
+
+def platform_scans(root, layout, index):
+    """Require each report to name the exact architecture's image configuration."""
+    for arch, runtime in runtime_manifests(index).items():
+        report = read(root / f"candidate-trivy-{arch}.json")
+        manifest = read(layout / "blobs/sha256" / runtime["digest"][7:])
+        metadata = report.get("Metadata", {})
+        config = metadata.get("ImageConfig", {})
+        if (metadata.get("ImageID") != manifest["config"]["digest"]
+                or config.get("architecture") != arch or config.get("os") != "linux"):
+            raise Failure("scan_platform_binding_mismatch")
+        scan_clean(report)
+
+
+def prepare_scans(root, layout, index):
+    """Give archive scanners one exact manifest; platform flags may be ignored."""
+    for arch, runtime in runtime_manifests(index).items():
+        destination = root / f"candidate-scan-{arch}"
+        destination.mkdir()
+        blobs = destination / "blobs/sha256"
+        blobs.mkdir(parents=True)
+        manifest = read(layout / "blobs/sha256" / runtime["digest"][7:])
+        for descriptor in [runtime, manifest["config"], *manifest.get("layers", [])]:
+            name = descriptor["digest"][7:]
+            shutil.copyfile(layout / "blobs/sha256" / name, blobs / name)
+        write(destination / "oci-layout", {"imageLayoutVersion": "1.0.0"})
+        write(destination / "index.json", {"schemaVersion": 2, "manifests": [runtime]})
+        verify_layout(destination, runtime["digest"], manifest)
 
 
 def binding(packet, env):
@@ -127,29 +180,40 @@ def main():
     bundle = root / "candidate-bundle"
     phase = sys.argv[1]
     if phase == "scan-summary":
-        path = root / "candidate-trivy.json"
-        summary = scan_summary(read(path)) if path.is_file() else {"scan_report": "unavailable"}
+        summary = {}
+        for arch in ARCHITECTURES:
+            path = root / f"candidate-trivy-{arch}.json"
+            summary[arch] = scan_summary(read(path)) if path.is_file() else {"scan_report": "unavailable"}
         write(root / "candidate-scan-summary.json", summary)
         print(json.dumps(summary))
         return
     digest = os.environ["BUILD_DIGEST"]
     source_sha = os.environ["SOURCE_SHA"]
+    if phase == "prepare-scans":
+        index, _ = inspect(bundle / "layout", digest, source_sha)
+        prepare_scans(root, bundle / "layout", index)
+        print("architecture_scan_inputs=PASS")
+        return
     if phase == "seal":
         packet = read(bundle / "candidate-source.json")
         packet.update(workflow_run_id=os.environ["GITHUB_RUN_ID"],
                       workflow_run_attempt=os.environ["GITHUB_RUN_ATTEMPT"])
         binding(packet, os.environ)
-        inspect(bundle / "layout", digest, source_sha)
-        scan_clean(read(root / "candidate-trivy.json"))
-        run(["skopeo", "copy", "--override-os", "linux", "--override-arch", "amd64",
-             "oci:" + str(bundle / "layout"), "docker-daemon:demo-candidate:probe"], "load_probe")
+        index, _ = inspect(bundle / "layout", digest, source_sha)
+        platform_scans(root, bundle / "layout", index)
         probe = Path("scripts/check_runtime_image.py").read_text()
-        output = run(["docker", "run", "--rm", "--network", "none", "--read-only", "--cap-drop=ALL",
-             "--security-opt=no-new-privileges", "--pids-limit=128", "--memory=512m", "-i",
-             "--entrypoint", ".venv/bin/python", "demo-candidate:probe", "-"],
-            "isolated_runtime_probe", input_text=probe)
-        probe_complete(output)
+        for arch in ARCHITECTURES:
+            tag = "demo-candidate:probe-" + arch
+            run(["skopeo", "copy", "--override-os", "linux", "--override-arch", arch,
+                 "oci:" + str(bundle / "layout"), "docker-daemon:" + tag], "load_probe")
+            output = run(["docker", "run", "--rm", "--platform", "linux/" + arch,
+                 "--network", "none", "--read-only", "--cap-drop=ALL",
+                 "--security-opt=no-new-privileges", "--pids-limit=128", "--memory=512m", "-i",
+                 "--entrypoint", ".venv/bin/python", tag, "-"],
+                "isolated_runtime_probe", input_text=probe)
+            probe_complete(output)
         packet.update(image=IMAGE, digest=digest, scanned_before_publish=True,
+                      scanned_platforms=PLATFORMS, runtime_probe_platforms=PLATFORMS,
                       vulnerability_count=0, secret_match_count=0,
                       runtime_packaging_probe_verified=False,
                       runtime_probe_evidence="candidate_process_self_report",
@@ -165,6 +229,8 @@ def main():
         raise Failure("build_artifact_identity_missing")
     if (packet.get("digest") != digest or packet.get("image") != IMAGE
             or packet.get("scanned_before_publish") is not True
+            or packet.get("scanned_platforms") != PLATFORMS
+            or packet.get("runtime_probe_platforms") != PLATFORMS
             or packet.get("runtime_packaging_probe_verified") is not False
             or packet.get("runtime_probe_evidence") != "candidate_process_self_report"
             or packet.get("runtime_probe_self_report") != "pass"):
@@ -175,7 +241,7 @@ def main():
     if phase == "verify":
         print("candidate_binding_and_all_bytes=PASS")
         return
-    scan_clean(read(root / "candidate-trivy.json"))
+    platform_scans(root, bundle / "layout", index)
     auth = Path(os.environ.get("DOCKER_CONFIG", str(Path.home() / ".docker"))) / "config.json"
     tag = "candidate-" + packet["workflow_run_id"] + "-" + packet["workflow_run_attempt"]
     previous = None

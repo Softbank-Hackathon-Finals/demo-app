@@ -24,9 +24,14 @@ blobs and the trusted workflow revision's Dockerfile/.dockerignore enter the bui
 The three jobs preserve these boundaries:
 
 1. **Build:** contents-read permission only, no registry login or AWS session.
-   Scan exported source/diff for secrets, build one linux/amd64 OCI index with
-   provenance/SBOM, scan HIGH/CRITICAL fixable vulnerabilities and secrets, then run
-   the trusted packaging probe in a network-disabled, read-only, non-root container
+   Scan exported source/diff for secrets, build one OCI index for linux/amd64 and
+   linux/arm64 with provenance/SBOM for each runtime manifest, and scan HIGH/CRITICAL
+   fixable vulnerabilities and secrets for each architecture. Every scan must name
+   that architecture's exact image configuration digest; an amd64 report cannot
+   stand in for arm64. The scanner receives a separate OCI layout containing exactly
+   one runtime manifest and its unchanged blobs; archive readers need not honor a
+   platform flag. Run the trusted packaging probe for both architectures in
+   a network-disabled, read-only, non-root container
    without host mounts. The immutable Actions artifact binds repository, PR,
    base/source/workflow SHA, diff SHA, request and producer run/attempt to the image digest.
    The probe imports candidate code in the same process: even complete JSON can be
@@ -34,8 +39,12 @@ The three jobs preserve these boundaries:
    `runtime_packaging_probe_verified=false`, and is only a smoke signal. Scanner
    findings, OCI configuration and byte checks are separate observations. Independent
    application/health acceptance requires T15's subsequent execution evidence.
+   QEMU runs only in this credential-free build job for ARM packaging compatibility;
+   it does not provide native target performance evidence. Both OCI configurations
+   must have the exact source revision and UID 10001, and each manifest must have
+   its own bound attestation. Receipts list both scanned and probed platforms.
 2. **GHCR:** fresh runner checks the exact run's artifact ID, receipt binding and
-   every OCI blob/descriptor, rescans, and requires the existing package to be
+   every OCI blob/descriptor, rescans both architectures, and requires the existing package to be
    private. It never executes the candidate image. Copy and independent download
    must preserve the index, child manifests, layers and attestations exactly.
 3. **ECR:** another fresh runner repeats verification/scanning before requesting
