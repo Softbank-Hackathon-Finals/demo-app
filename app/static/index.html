@@ -53,50 +53,7 @@
   </aside>
 
   <main class="shell">
-    <dialog id="wallet-dialog" class="wallet-dialog" aria-labelledby="wallet-title">
-      <div class="wallet-heading"><h2 id="wallet-title">포인트 지갑 <small>모의 서비스</small></h2><button id="wallet-close" class="plain-icon" type="button" aria-label="지갑 닫기"><svg aria-hidden="true"><use href="#i-close"/></svg></button></div>
-      <section id="wallet" class="wallet-panel" aria-label="내 지갑">
-      <p id="wallet-notice" class="notice wallet-notice" role="status" hidden></p>
-      <div id="onboard" class="card onboard">
-        <p class="eyebrow">BRAVO POINT</p>
-        <h1>계좌를 열면<br><span>100,000P</span>를 드려요</h1>
-        <p class="hint">발표 중에 옆 사람과 포인트를 주고받아 보세요. 서비스가 다른 클라우드로 옮겨 가는 동안에도 잔액과 거래는 그대로 남아요.</p>
-        <label for="open-name">이름 (그대로 써도 돼요)</label>
-        <input id="open-name" type="text" maxlength="20" placeholder="예: 방문자 07" autocomplete="off">
-        <button id="open-account" type="button">100,000P 받고 바로 시작</button>
-        <p id="open-feedback" class="feedback" role="status"></p>
-        <p class="fine">모의 포인트예요. 실제 돈·계좌번호·개인정보는 쓰지 않아요.</p>
-      </div>
 
-      <div id="account" class="card account" hidden>
-        <div class="account-top">
-          <span id="account-name"></span>
-          <button id="copy-code" class="code" type="button" title="내 계좌번호 복사"><span id="account-code"></span></button>
-        </div>
-        <span class="small-label">잔액</span>
-        <strong id="balance">0P</strong>
-        <small id="balance-note">사용 가능 포인트</small>
-        <div class="account-actions">
-          <button id="open-send" type="button">송금</button>
-          <button id="copy-code-2" class="ghost-light" type="button">내 계좌번호 복사</button>
-        </div>
-      </div>
-
-
-      <section id="recent-card" class="card recent" aria-label="최근 보낸 사람" hidden>
-        <h2>최근 보낸 사람</h2>
-        <ul id="recent" class="recent-list"></ul>
-      </section>
-
-      <section id="ledger-outbox" class="card outbox" aria-label="처리 대기 거래" aria-live="polite" hidden></section>
-
-      <section id="history-card" class="card history" aria-label="거래 내역" hidden>
-        <div class="history-head"><h2>거래 내역</h2><button id="verify" class="secondary" type="button">DB에서 다시 확인</button></div>
-        <p id="verify-result" class="verify" role="status">전환이 끝나면 지금 연결된 환경의 DB에서 내 기록을 자동으로 다시 읽어요.</p>
-        <ol id="history" class="history-list"></ol>
-      </section>
-    </section>
-    </dialog>
 
     <section class="chat-panel" aria-label="브라보 라운지 대화방">
       <header class="chat-header">
@@ -184,6 +141,50 @@
       </section>
     </aside>
   </main>
+  <dialog id="wallet-dialog" class="wallet-dialog" aria-labelledby="wallet-title">
+      <div class="wallet-heading"><h2 id="wallet-title">포인트 지갑 <small>모의 서비스</small></h2><button id="wallet-close" class="plain-icon" type="button" aria-label="지갑 닫기"><svg aria-hidden="true"><use href="#i-close"/></svg></button></div>
+      <section id="wallet" class="wallet-panel" aria-label="내 지갑">
+      <p id="wallet-notice" class="notice wallet-notice" role="status" hidden></p>
+      <div id="onboard" class="card onboard">
+        <p class="eyebrow">BRAVO POINT</p>
+        <h1>계좌를 열면<br><span>100,000P</span>를 드려요</h1>
+        <p class="hint">발표 중에 옆 사람과 포인트를 주고받아 보세요. 서비스가 다른 클라우드로 옮겨 가는 동안에도 잔액과 거래는 그대로 남아요.</p>
+        <label for="open-name">이름 (그대로 써도 돼요)</label>
+        <input id="open-name" type="text" maxlength="20" placeholder="예: 방문자 07" autocomplete="off">
+        <button id="open-account" type="button">100,000P 받고 바로 시작</button>
+        <p id="open-feedback" class="feedback" role="status"></p>
+        <p class="fine">모의 포인트예요. 실제 돈·계좌번호·개인정보는 쓰지 않아요.</p>
+      </div>
+
+      <div id="account" class="card account" hidden>
+        <div class="account-top">
+          <span id="account-name"></span>
+          <button id="copy-code" class="code" type="button" title="내 계좌번호 복사"><span id="account-code"></span></button>
+        </div>
+        <span class="small-label">잔액</span>
+        <strong id="balance">0P</strong>
+        <small id="balance-note">사용 가능 포인트</small>
+        <div class="account-actions">
+          <button id="open-send" type="button">송금</button>
+          <button id="copy-code-2" class="ghost-light" type="button">내 계좌번호 복사</button>
+        </div>
+      </div>
+
+
+      <section id="recent-card" class="card recent" aria-label="최근 보낸 사람" hidden>
+        <h2>최근 보낸 사람</h2>
+        <ul id="recent" class="recent-list"></ul>
+      </section>
+
+      <section id="ledger-outbox" class="card outbox" aria-label="처리 대기 거래" aria-live="polite" hidden></section>
+
+      <section id="history-card" class="card history" aria-label="거래 내역" hidden>
+        <div class="history-head"><h2>거래 내역</h2><button id="verify" class="secondary" type="button">DB에서 다시 확인</button></div>
+        <p id="verify-result" class="verify" role="status">전환이 끝나면 지금 연결된 환경의 DB에서 내 기록을 자동으로 다시 읽어요.</p>
+        <ol id="history" class="history-list"></ol>
+      </section>
+    </section>
+    </dialog>
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
   <dialog id="send-sheet" class="sheet" aria-labelledby="sheet-title">
