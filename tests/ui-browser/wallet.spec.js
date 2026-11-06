@@ -90,3 +90,26 @@ test('a reload resumes the saved ledger instead of replaying, and overdraft is r
   await expect(page.locator('#transfer-feedback')).toHaveText('잔액이 부족합니다.');
   await expect(page.locator('#balance')).toHaveText('60,000P');
 });
+
+test('the read-only stage view shows conservation, the live feed and the switch', async ({ page, browser, request }) => {
+  const stage = await (await browser.newContext({ viewport: { width: 1440, height: 900 } })).newPage();
+  const writes = []; stage.on('request', (r) => { if (r.method() !== 'GET') writes.push(r.url()); });
+  await stage.goto('/stage.html');
+  await expect(stage.locator('#conn')).toHaveText('연결됨');
+  await expect(stage.locator('#env')).toHaveText('AWS');
+  const other = await (await browser.newContext()).newPage();
+  const code = await openAccount(other, '받는 사람');
+  await openAccount(page, '보내는 사람');
+  await expect(page.locator('#to')).toContainText('받는 사람');
+  await page.locator('#to').selectOption(code); await page.locator('#amount').fill('15000');
+  await page.locator('#transfer-send').click();
+  await expect(stage.locator('#feed')).toContainText('보내는 사람 → 받는 사람');
+  await expect(stage.locator('#total')).toHaveText('200,000P');
+  await expect(stage.locator('#invariant')).toHaveAttribute('data-state', 'ok');
+  await expect(stage.locator('#k-duplicates')).toHaveText('0건');
+  await request.post('/__test__/switch/onprem');
+  await expect(stage.locator('#env')).toHaveText('온프렘');
+  await expect(stage.locator('#path')).toHaveText(/AWS\s*온프렘/);
+  await expect(stage.locator('#timeline')).toContainText('1012');
+  expect(writes).toEqual([]);
+});
