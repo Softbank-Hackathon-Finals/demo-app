@@ -1,4 +1,6 @@
-# 코드 오너. 보안 경계 파일이 생기면 여기에 추가한다.
-# 아래 파일을 바꾸는 PR은 코드 오너에게 리뷰 요청 알림이 간다. 승인은 필요 없다(main ruleset의 코드 오너 리뷰 꺼짐).
+# 모든 파일 변경의 기본 리뷰 후보는 팀 전원이다. PR 작성자는 리뷰 요청에서 제외된다.
+# 리뷰 알림과 필수 승인·병합 조건은 별개이며 현재 저장소 정책을 따른다.
+*  @baekyutae @Jeonsubb @kth4778 @mangowhoiscloud @sangmu1126
+
 /.github/CODEOWNERS  @baekyutae @Jeonsubb @kth4778 @mangowhoiscloud @sangmu1126
 /.github/workflows/  @baekyutae @Jeonsubb @kth4778 @mangowhoiscloud @sangmu1126
