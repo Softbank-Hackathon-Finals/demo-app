@@ -1,4 +1,6 @@
 name: publish-candidate-image
+# The platform finds its one run by request ID (idempotent dispatch); inputs are not in the runs API.
+run-name: candidate ${{ inputs.request_id }}
 
 on:
   workflow_dispatch:
