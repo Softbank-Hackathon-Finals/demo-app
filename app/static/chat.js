@@ -1,6 +1,7 @@
 import { qrcode } from './vendor/qrcode.mjs';
 import { MessageCursor, deliver, validateMessage, shareAddress } from './transport.js';
 import { Continuity, duration, envKey, envLabel } from './observe.js';
+import * as wallet from './wallet.js';
 
 const $ = (id) => document.getElementById(id);
 const cursor = new MessageCursor();
@@ -88,6 +89,11 @@ $('panel-toggle').onclick = () => {
   const open = !document.body.classList.contains('panel-open');
   document.body.classList.toggle('panel-open', open); $('panel-toggle').setAttribute('aria-expanded', String(open));
 };
+function showTab(tab) {
+  document.body.dataset.tab = tab;
+  for (const button of document.querySelectorAll('.tabs button')) button.setAttribute('aria-pressed', String(button.dataset.tab === tab));
+}
+for (const button of document.querySelectorAll('.tabs button')) button.onclick = () => showTab(button.dataset.tab);
 $('panel-close').onclick = () => { document.body.classList.remove('panel-open'); $('panel-toggle').setAttribute('aria-expanded', 'false'); };
 
 // --- Connection and status --------------------------------------------------
@@ -104,6 +110,9 @@ function notice() {
   const text = !connected ? '연결을 다시 확인하고 있습니다. 대기 중인 메시지는 이 탭에 남아 있습니다.' :
     blocked ? '현재 연결된 앱의 쓰기가 잠시 제한되었습니다. 같은 요청으로 재전송합니다. 메시지 읽기는 계속됩니다.' : '';
   $('banner').textContent = text; $('banner').hidden = !text;
+  const walletText = !connected ? '연결을 다시 확인하고 있습니다. 잔액과 처리 대기 중인 송금은 이 기기에 남아 있습니다.' :
+    blocked ? '시스템 전환 중이라 송금이 잠시 대기합니다. 같은 거래 번호로 자동 재시도하며 출금은 한 번만 됩니다.' : '';
+  $('wallet-notice').textContent = walletText; $('wallet-notice').hidden = !walletText;
 }
 
 function status(data, hello = false) {
@@ -115,6 +124,7 @@ function status(data, hello = false) {
   blocked = data.write_blocked; notice();
   record(hello ? continuity.connected(data.env, blocked, Date.now()) : continuity.status(data.env, blocked, Date.now()));
   if (previous !== null && previous !== data.env) {
+    wallet.environmentChanged(previous, data.env);
     clearTimeout(switchFlash); $('env-card').classList.remove('switched'); void $('env-card').offsetWidth;
     $('env-card').classList.add('switched'); switchFlash = setTimeout(() => $('env-card').classList.remove('switched'), 3500);
   }
@@ -212,7 +222,10 @@ function connect() {
       if (data.type === 'hello') {
         status(data, true); clearTimeout(handshakeTimer); reconnectAttempt = 0; connectionState(true);
       } else if (data.type === 'status') status(data);
-      else if (data.type === 'messages') append(cursor.accept(data.items), { env: continuity.env, saved: false });
+      else if (data.type === 'messages') {
+        const rows = wallet.ingest(cursor.accept(data.items), continuity.env);
+        append(rows, { env: continuity.env, saved: false }); wallet.persist(cursor.value); backgroundNote();
+      }
       else throw new Error('unknown_frame');
     } catch {
       $('feedback').textContent = '응답을 확인할 수 없어 다시 연결합니다.'; ws.close();
@@ -257,7 +270,12 @@ for (const chip of $('quick').querySelectorAll('button')) {
   chip.onclick = () => { $('body').value = chip.dataset.text; updateCounter(); $('body').focus(); };
 }
 
-function updateOutbox() { $('outbox').hidden = pending.size === 0; $('send').disabled = pending.size >= 10; }
+function updateOutbox() {
+  const chat = [...pending].filter((e) => e.kind === 'chat').length;
+  $('outbox').hidden = chat === 0; $('ledger-outbox').hidden = pending.size === chat;
+  $('send').disabled = $('transfer-send').disabled = pending.size >= 10;
+  wallet.renderWallet();
+}
 
 // Every attempt reuses the caller-owned request; only the observed outcome is recorded.
 function tracked(entry, stage, request) {
@@ -281,7 +299,9 @@ async function send(entry) {
   if (entry.running) return;
   entry.running = true; entry.retry.hidden = true; entry.dismiss.hidden = true; entry.pause.hidden = false;
   entry.controller = new AbortController(); entry.state.textContent = '전송 확인 중';
-  const options = { signal: entry.controller.signal, onWait: () => { entry.state.textContent = '응답 대기 · 같은 요청으로 재시도 중'; } };
+  const options = { signal: entry.controller.signal, onWait: () => {
+    entry.state.textContent = entry.kind === 'ledger' ? '처리 대기 · 같은 거래 번호(같은 요청)로 재시도 중' : '응답 대기 · 같은 요청으로 재시도 중';
+  } };
   try {
     if (entry.file && !entry.uploaded) {
       if (!uploadsEnabled) throw Object.assign(new Error('uploads_disabled'), { code: 'uploads_disabled' });
@@ -304,16 +324,35 @@ async function send(entry) {
     } });
     // Do not advance the resume cursor here: other participants' messages may be in flight.
     // 201 means this app stored it now; 200 means an earlier attempt already had.
-    append([saved], entry.ack ?? { env: null, saved: false }); pending.delete(entry); entry.el.remove();
+    pending.delete(entry); entry.el.remove();
+    entry.onSaved(saved, entry.ack ?? { env: null, saved: false }, entry);
     record(continuity.delivered(saved.id, entry.attempts, Date.now()));
-    $('feedback').textContent = entry.attempts > 1
-      ? `메시지 #${saved.id} 저장을 확인했습니다 · ${entry.attempts}번 시도했지만 같은 멱등 키라 1건만 저장됐습니다.`
-      : `메시지 #${saved.id} 저장을 확인했습니다.`;
   } catch (error) {
     const permanent = ['conflict', 'rejected', 'too_large', 'uploads_disabled'].includes(error.code);
     entry.state.textContent = ({ uploads_disabled: '첨부 업로드 제한 · 첨부 없이 새 메시지를 작성해 주세요', conflict: '내용 충돌 · 새 메시지로 작성해 주세요', rejected: '요청 거부 · 입력을 확인해 주세요', too_large: '첨부 용량 초과', paused: '재시도 일시 정지 · 저장 여부 미확인' })[error.code] || '자동 재시도 종료 · 저장 여부 미확인';
     entry.retry.hidden = permanent; entry.pause.hidden = true; entry.dismiss.hidden = false;
   } finally { entry.running = false; updateOutbox(); }
+}
+
+// One queue for chat messages and ledger rows: every entry keeps one frozen
+// payload and one idempotency key across every retry and environment switch.
+function enqueue({ kind, author, body, file = null, summary, container, onSaved, transfer = null, key = uuid() }) {
+  const entry = { kind, transfer, onSaved, message: Object.freeze({ idempotency_key: key, author, body, attachment_id: file ? uuid() : null }), file, uploaded: false, running: false, attempts: 0, trail: [] };
+  entry.el = document.createElement('div'); entry.el.className = 'pending-item';
+  const details = document.createElement('div'), text = document.createElement('p');
+  text.textContent = summary; entry.state = document.createElement('small');
+  entry.trailEl = document.createElement('small'); entry.trailEl.className = 'trail';
+  details.append(text, entry.state, entry.trailEl);
+  entry.retry = document.createElement('button'); entry.retry.type = 'button'; entry.retry.textContent = '같은 요청 재시도'; entry.retry.hidden = true; entry.retry.onclick = () => send(entry);
+  entry.pause = document.createElement('button'); entry.pause.type = 'button'; entry.pause.textContent = '재시도 정지'; entry.pause.onclick = () => entry.controller?.abort();
+  entry.dismiss = document.createElement('button'); entry.dismiss.type = 'button'; entry.dismiss.textContent = '목록에서 숨기기'; entry.dismiss.hidden = true;
+  entry.dismiss.onclick = () => {
+    if (entry.running || !window.confirm('대기 목록에서만 숨깁니다. 이미 저장된 메시지·송금·첨부는 취소되지 않습니다.')) return;
+    pending.delete(entry); entry.el.remove(); updateOutbox();
+  };
+  entry.el.append(details, entry.retry, entry.pause, entry.dismiss); container.append(entry.el); pending.add(entry);
+  updateOutbox(); send(entry);
+  return entry;
 }
 
 $('form').onsubmit = (event) => {
@@ -325,21 +364,13 @@ $('form').onsubmit = (event) => {
     (author ? $('body') : $('name')).focus(); return;
   }
   try { sessionStorage.setItem('bravo-alias', author); } catch { /* No message contents are persisted. */ }
-  const entry = { message: Object.freeze({ idempotency_key: uuid(), author, body, attachment_id: file ? uuid() : null }), file, uploaded: false, running: false, attempts: 0, trail: [] };
-  entry.el = document.createElement('div'); entry.el.className = 'pending-item';
-  const details = document.createElement('div'), summary = document.createElement('p');
-  summary.textContent = body || file.name; entry.state = document.createElement('small');
-  entry.trailEl = document.createElement('small'); entry.trailEl.className = 'trail';
-  details.append(summary, entry.state, entry.trailEl);
-  entry.retry = document.createElement('button'); entry.retry.type = 'button'; entry.retry.textContent = '같은 요청 재시도'; entry.retry.hidden = true; entry.retry.onclick = () => send(entry);
-  entry.pause = document.createElement('button'); entry.pause.type = 'button'; entry.pause.textContent = '재시도 정지'; entry.pause.onclick = () => entry.controller?.abort();
-  entry.dismiss = document.createElement('button'); entry.dismiss.type = 'button'; entry.dismiss.textContent = '목록에서 숨기기'; entry.dismiss.hidden = true;
-  entry.dismiss.onclick = () => {
-    if (entry.running || !window.confirm('대기 목록에서만 숨깁니다. 이미 저장된 메시지나 첨부는 취소·삭제되지 않습니다.')) return;
-    pending.delete(entry); entry.el.remove(); updateOutbox();
-  };
-  entry.el.append(details, entry.retry, entry.pause, entry.dismiss); $('outbox').append(entry.el); pending.add(entry);
-  $('body').value = ''; $('file').value = ''; updateCounter(); $('feedback').textContent = ''; clearPreview(); updateOutbox(); send(entry);
+  enqueue({ kind: 'chat', author, body, file, summary: body || file.name, container: $('outbox'), onSaved: (saved, ack, entry) => {
+    append([saved], ack);
+    $('feedback').textContent = entry.attempts > 1
+      ? `메시지 #${saved.id} 저장을 확인했습니다 · ${entry.attempts}번 시도했지만 같은 멱등 키라 1건만 저장됐습니다.`
+      : `메시지 #${saved.id} 저장을 확인했습니다.`;
+  } });
+  $('body').value = ''; $('file').value = ''; updateCounter(); $('feedback').textContent = ''; clearPreview();
 };
 
 // --- Sharing ----------------------------------------------------------------
@@ -366,5 +397,40 @@ $('copy-link').onclick = async () => {
 window.addEventListener('beforeunload', (event) => { if (pending.size) { event.preventDefault(); event.returnValue = ''; } });
 window.addEventListener('pagehide', () => { stopping = true; clearTimeout(reconnectTimer); clearTimeout(handshakeTimer); socket?.close(); for (const entry of pending) entry.controller?.abort(); clearPreview(); });
 window.addEventListener('pageshow', (event) => { if (event.persisted) { stopping = false; connect(); } });
+
+function backgroundNote() {
+  const count = wallet.background();
+  $('load-note').hidden = count === 0;
+  $('load-note').textContent = `부하 시험 메시지 ${count.toLocaleString()}건은 대화창에 표시하지 않습니다`;
+}
+
+// Resume the stream where the saved ledger was computed, so a reload neither
+// replays the whole database nor skips a row in between. Recent chat history
+// is fetched separately for display only.
+async function startup() {
+  let saved = wallet.restore();
+  try {
+    const response = await fetch('/api/messages', { signal: AbortSignal.timeout(3000) });
+    if (!response.ok) throw new Error('unavailable');
+    const env = response.headers.get('X-Bravo-Env');
+    const page = await response.json();
+    if (!Array.isArray(page)) throw new Error('invalid_messages');
+    const latest = page.length ? page[page.length - 1].id : 0;
+    if (saved !== null && saved > latest) { wallet.discard(); saved = null; } // the database was reset
+    if (saved === null) {
+      append(wallet.ingest(cursor.accept(page), env), { env, saved: false });
+      wallet.persist(cursor.value); backgroundNote();
+    } else {
+      cursor.value = saved;
+      for (const m of page) validateMessage(m);
+      append(page.filter((m) => m.id <= saved && wallet.isChat(m)), { env, saved: false });
+    }
+  } catch {
+    if (saved !== null) cursor.value = saved;
+  }
+}
+
+wallet.init({ enqueue, uuid, pending: () => [...pending] });
 renderSplit();
+await startup();
 connect();

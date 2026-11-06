@@ -125,6 +125,7 @@ test('reconnect asks after the last streamed id and retrieves messages sent whil
 test('mobile layout, local preview and sharing omit query tokens', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/?token=do-not-share#private');
+  await page.locator('#tab-chat').click(); // phones open on the wallet tab
   await expect(page.locator('#send')).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.locator('#file').setInputFiles({ name: 'sample.png', mimeType: 'image/png', buffer: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jWZkAAAAASUVORK5CYII=', 'base64') });

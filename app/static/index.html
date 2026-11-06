@@ -5,15 +5,15 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="referrer" content="no-referrer">
   <meta name="theme-color" content="#0f2a3a">
-  <title>Bravo 뱅크 · 실시간 상담</title>
+  <title>Bravo 뱅크 · 모바일 뱅킹</title>
   <link rel="stylesheet" href="/chat.css">
   <script type="module" src="/chat.js"></script>
 </head>
-<body>
+<body data-tab="wallet">
   <header class="topbar">
     <div class="brand">
       <span class="mark" aria-hidden="true">B</span>
-      <div><strong>Bravo 뱅크</strong><small>실시간 금융 상담 · 모의 서비스</small></div>
+      <div><strong>Bravo 뱅크</strong><small>모바일 뱅킹 · 모의 서비스</small></div>
     </div>
     <div class="top-status" aria-label="현재 접속 상태">
       <span id="env-pill" class="env-pill" data-env="unknown" title="이 화면을 지금 처리하는 앱의 환경"><span class="dot" aria-hidden="true"></span><span id="env-pill-text">확인 중</span></span>
@@ -26,34 +26,93 @@
     </div>
   </header>
 
+  <nav class="tabs" aria-label="화면 전환">
+    <button id="tab-wallet" type="button" data-tab="wallet" aria-pressed="true">내 지갑 · 송금</button>
+    <button id="tab-chat" type="button" data-tab="chat" aria-pressed="false">상담</button>
+  </nav>
+
   <main class="shell">
+    <section id="wallet" class="wallet-panel" aria-label="내 지갑">
+      <p id="wallet-notice" class="notice wallet-notice" role="status" hidden></p>
+      <div id="onboard" class="card onboard">
+        <p class="eyebrow">BRAVO POINT</p>
+        <h1>계좌를 열고 <span>100,000P</span>로 시작하세요</h1>
+        <p class="hint">발표 중 다른 참여자와 포인트를 주고받아 보세요. 서비스가 다른 클라우드로 옮겨지는 동안에도 잔액과 거래는 그대로 남습니다.</p>
+        <label for="open-name">이름(별명)</label>
+        <input id="open-name" type="text" maxlength="20" placeholder="예: 방문자 07" autocomplete="off">
+        <button id="open-account" type="button">계좌 개설하고 100,000P 받기</button>
+        <p id="open-feedback" class="feedback" role="status"></p>
+        <p class="fine">모의 포인트입니다. 실제 돈·계좌번호·개인정보는 쓰지 않습니다.</p>
+      </div>
+
+      <div id="account" class="card account" hidden>
+        <div class="account-top">
+          <span id="account-name"></span>
+          <button id="copy-code" class="code" type="button" title="내 계좌번호 복사"><span id="account-code"></span></button>
+        </div>
+        <span class="small-label">잔액</span>
+        <strong id="balance">0P</strong>
+        <small id="balance-note">사용 가능 포인트</small>
+      </div>
+
+      <form id="transfer-form" class="card transfer" hidden>
+        <h2>송금</h2>
+        <label for="to">받는 사람</label>
+        <select id="to"></select>
+        <div id="to-code-row" class="to-code" hidden>
+          <label for="to-code" class="sr-only">받는 계좌번호</label>
+          <input id="to-code" type="text" placeholder="BRV-XXXXXX" maxlength="10" autocomplete="off" autocapitalize="characters">
+        </div>
+        <label for="amount">금액</label>
+        <div class="amount-row">
+          <input id="amount" type="text" inputmode="numeric" placeholder="0" autocomplete="off"><span>P</span>
+        </div>
+        <div class="chips" role="group" aria-label="빠른 금액">
+          <button type="button" data-amount="10000">1만</button>
+          <button type="button" data-amount="30000">3만</button>
+          <button type="button" data-amount="50000">5만</button>
+        </div>
+        <label for="memo">받는 분에게 보일 메모</label>
+        <input id="memo" type="text" maxlength="40" placeholder="예: 점심값" autocomplete="off">
+        <button id="transfer-send" type="submit">보내기</button>
+        <p id="transfer-feedback" class="feedback" role="status"></p>
+      </form>
+
+      <section id="ledger-outbox" class="card outbox" aria-label="처리 대기 거래" aria-live="polite" hidden></section>
+
+      <section id="history-card" class="card history" aria-label="거래 내역" hidden>
+        <div class="history-head"><h2>거래 내역</h2><button id="verify" class="secondary" type="button">DB에서 다시 확인</button></div>
+        <p id="verify-result" class="verify" role="status">전환이 끝나면 지금 연결된 환경의 DB에서 내 기록을 자동으로 다시 읽습니다.</p>
+        <ol id="history" class="history-list"></ol>
+      </section>
+    </section>
+
     <section class="chat-panel" aria-label="금융 상담 대화방">
       <header class="chat-header">
         <div class="room">
           <span class="room-icon" aria-hidden="true">₩</span>
           <div>
-            <h1>상담 라운지 <span class="demo-tag">모의 상담</span></h1>
+            <h2>상담 라운지 <span class="demo-tag">모의 상담</span></h2>
             <p>공개 대화방 · 실제 계좌번호·비밀번호·개인정보는 입력하지 마세요</p>
           </div>
         </div>
-        <div class="hours"><span class="live-dot" aria-hidden="true"></span>24시간 운영</div>
       </header>
       <div id="banner" class="notice" role="status" hidden></div>
+      <p id="load-note" class="load-note" hidden></p>
       <div id="log" role="log" aria-label="상담 메시지" aria-live="polite" aria-relevant="additions">
         <div id="empty" class="empty-state">
           <span aria-hidden="true">💬</span>
-          <h2>무엇을 도와드릴까요?</h2>
-          <p>아래 자주 묻는 질문을 누르거나 직접 입력해 보세요.<br>서비스가 다른 클라우드로 옮겨 가는 중에도 대화는 이어집니다.</p>
+          <h3>무엇을 도와드릴까요?</h3>
+          <p>자주 묻는 질문을 누르거나 직접 입력해 보세요.<br>서비스가 다른 클라우드로 옮겨 가는 중에도 대화는 이어집니다.</p>
         </div>
       </div>
       <button id="jump" class="jump" type="button" hidden>새 메시지 · 아래로</button>
       <section id="outbox" aria-label="전송 대기 메시지" aria-live="polite" hidden></section>
       <div id="quick" class="quick" role="group" aria-label="자주 묻는 질문">
-        <button type="button" data-text="이체 한도는 어디서 바꿀 수 있나요?">이체 한도 변경</button>
-        <button type="button" data-text="카드를 잃어버렸어요. 바로 정지할 수 있나요?">카드 분실 신고</button>
-        <button type="button" data-text="해외 송금 수수료와 도착 시간이 궁금해요.">해외 송금</button>
-        <button type="button" data-text="정기예금과 적금 금리를 비교해 주세요.">예·적금 금리</button>
-        <button type="button" data-text="대출 상환 일정을 바꿀 수 있나요?">대출 상환</button>
+        <button type="button" data-text="송금을 잘못 보냈어요. 취소할 수 있나요?">송금 취소</button>
+        <button type="button" data-text="이체 한도는 어디서 바꿀 수 있나요?">이체 한도</button>
+        <button type="button" data-text="점검 중에 보낸 송금은 어떻게 되나요?">점검 중 송금</button>
+        <button type="button" data-text="카드를 잃어버렸어요. 바로 정지할 수 있나요?">카드 분실</button>
       </div>
       <div id="file-preview" class="file-preview" hidden></div>
       <form id="form">
@@ -80,7 +139,7 @@
         <div><p class="eyebrow">BEYOND LOCK-IN</p><h2>서비스 연속성 관찰</h2></div>
         <button id="panel-close" class="icon-button" type="button" aria-label="관찰 패널 닫기">✕</button>
       </div>
-      <p class="observe-intro">이 상담 서비스는 운영 중에 AWS에서 온프렘으로 옮겨질 수 있습니다. 아래 값은 이 브라우저가 직접 겪은 것만 보여 줍니다.</p>
+      <p class="observe-intro">이 서비스는 운영 중에 AWS에서 온프렘으로 옮겨질 수 있습니다. 아래 값은 이 브라우저가 직접 겪은 것만 보여 줍니다.</p>
 
       <section id="env-card" class="env-card" data-env="unknown" aria-label="현재 처리 환경">
         <span class="small-label">지금 이 화면을 처리하는 앱</span>
@@ -88,7 +147,7 @@
         <p id="environment-note">서버가 알려 준 실행 환경을 표시합니다.</p>
         <ol class="route" aria-label="이전 경로">
           <li data-route="aws"><span>출발지</span>AWS</li>
-          <li class="arrow" aria-hidden="true">→</li>
+          <li class="arrow" aria-hidden="true">⇄</li>
           <li data-route="onprem"><span>목적지</span>온프렘</li>
         </ol>
       </section>
@@ -101,7 +160,7 @@
       </section>
 
       <section class="split" aria-label="메시지를 처리한 환경">
-        <h3>메시지를 처리한 환경 <small id="split-total">화면의 0건</small></h3>
+        <h3>대화 메시지를 처리한 환경 <small id="split-total">화면의 0건</small></h3>
         <div id="split-bar" class="split-bar" role="img" aria-label="표시된 메시지 없음"></div>
         <ul id="split-legend" class="split-legend"></ul>
       </section>
@@ -114,22 +173,22 @@
       <section class="guarantees" aria-label="끊김 없이 이어지는 이유">
         <h3>끊김 없이 이어지는 이유</h3>
         <ul>
-          <li><strong>같은 요청 재전송</strong>메시지마다 브라우저가 만든 멱등 키로 재시도해 전환 중에도 유실·중복이 없습니다.</li>
-          <li><strong>마지막 메시지부터 재접속</strong>연결이 닫히면 마지막으로 받은 메시지 번호 이후만 다시 받습니다.</li>
-          <li><strong>공통 DB 기준 전파</strong>두 환경의 앱이 같은 쓰기 DB를 조회하므로 전환 중에도 서로의 메시지를 봅니다.</li>
+          <li><strong>같은 거래 번호로만 재시도</strong>송금마다 브라우저가 만든 번호(멱등 키)로 다시 보내 전환 중에도 출금이 한 번만 됩니다.</li>
+          <li><strong>마지막 기록부터 재접속</strong>연결이 닫히면 마지막으로 받은 번호 이후만 다시 받습니다.</li>
+          <li><strong>공통 DB 기준 전파</strong>두 환경의 앱이 같은 쓰기 DB를 조회하므로 전환 중에도 서로의 거래를 봅니다.</li>
         </ul>
       </section>
     </aside>
   </main>
 
   <dialog id="share-dialog" aria-labelledby="share-title">
-    <div class="dialog-heading"><h2 id="share-title">같은 상담방에 참여</h2><button id="close-share" class="icon-button" type="button" aria-label="QR 닫기">✕</button></div>
-    <p>휴대폰 카메라로 QR을 읽거나 주소를 복사하세요. 전환 중에도 같은 주소로 계속 대화할 수 있습니다.</p>
-    <canvas id="qr" width="256" height="256" role="img" aria-label="현재 상담방 접속 QR"></canvas>
+    <div class="dialog-heading"><h2 id="share-title">Bravo 뱅크에 참여</h2><button id="close-share" class="icon-button" type="button" aria-label="QR 닫기">✕</button></div>
+    <p>휴대폰 카메라로 QR을 읽거나 주소를 복사하세요. 전환 중에도 같은 주소로 계속 이용할 수 있습니다.</p>
+    <canvas id="qr" width="256" height="256" role="img" aria-label="현재 서비스 접속 QR"></canvas>
     <input id="share-url" type="text" readonly aria-label="공유 주소">
     <button id="copy-link" type="button">주소 복사</button>
     <p id="share-note" role="status"></p>
   </dialog>
-  <noscript>이 상담 데모는 JavaScript를 켜야 사용할 수 있습니다.</noscript>
+  <noscript>Bravo 뱅크 데모는 JavaScript를 켜야 사용할 수 있습니다.</noscript>
 </body>
 </html>
