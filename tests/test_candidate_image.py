@@ -202,16 +202,23 @@ def layout(tmp_path):
         (blobs / sha).write_bytes(content)
         return {"mediaType": media_type, "digest": "sha256:" + sha, "size": len(content)}
 
-    config = blob({"config": {"User": "10001", "Labels": {
-        "org.opencontainers.image.revision": "a" * 40}}}, "application/vnd.oci.image.config.v1+json")
-    runtime = blob({"config": config, "layers": []}, "application/vnd.oci.image.manifest.v1+json")
-    runtime["platform"] = {"architecture": "amd64", "os": "linux"}
-    attestation = blob({"config": config, "layers": []}, "application/vnd.oci.image.manifest.v1+json")
-    attestation["platform"] = {"architecture": "unknown", "os": "unknown"}
-    attestation["annotations"] = {"vnd.docker.reference.type": "attestation-manifest"}
-    top = blob({"manifests": [runtime, attestation]}, "application/vnd.oci.image.index.v1+json")
+    manifests = []
+    configs = {}
+    for arch in image.ARCHITECTURES:
+        config = blob({"architecture": arch, "os": "linux", "config": {"User": "10001", "Labels": {
+            "org.opencontainers.image.revision": "a" * 40}}}, "application/vnd.oci.image.config.v1+json")
+        configs[arch] = config["digest"]
+        runtime = blob({"config": config, "layers": []}, "application/vnd.oci.image.manifest.v1+json")
+        runtime["platform"] = {"architecture": arch, "os": "linux"}
+        attestation = blob({"config": config, "layers": []}, "application/vnd.oci.image.manifest.v1+json")
+        attestation["platform"] = {"architecture": "unknown", "os": "unknown"}
+        attestation["annotations"] = {"vnd.docker.reference.type": "attestation-manifest",
+                                      "vnd.docker.reference.digest": runtime["digest"]}
+        manifests.extend([runtime, attestation])
+    top = blob({"manifests": manifests}, "application/vnd.oci.image.index.v1+json")
     (root / "index.json").write_text(json.dumps({"manifests": [top]}))
-    return root, top["digest"], config["digest"]
+    return root, top["digest"], configs
+
 
 
 def test_oci_bytes_revision_user_and_link_are_checked(layout):
@@ -224,14 +231,40 @@ def test_oci_bytes_revision_user_and_link_are_checked(layout):
     with pytest.raises(image.Failure, match="non_regular_oci_entry"):
         image.inspect(root, index, "a" * 40)
     link.unlink()
-    (root / "blobs/sha256" / config[7:]).write_text("corrupted")
+    (root / "blobs/sha256" / config["arm64"][7:]).write_text("corrupted")
     with pytest.raises(image.Failure, match="oci_blob_digest_mismatch"):
         image.inspect(root, index, "a" * 40)
 
 
+def replace_index(root, value):
+    raw = json.dumps(value).encode()
+    digest_value = "sha256:" + hashlib.sha256(raw).hexdigest()
+    (root / "blobs/sha256" / digest_value[7:]).write_bytes(raw)
+    (root / "index.json").write_text(json.dumps({"manifests": [{
+        "mediaType": "application/vnd.oci.image.index.v1+json", "digest": digest_value, "size": len(raw)}]}))
+    return digest_value
+
+
+@pytest.mark.parametrize("change", ["missing_arm", "duplicate_arm", "wrong_attestation", "missing_attestation"])
+def test_missing_ambiguous_or_unattested_architecture_is_rejected(layout, change):
+    root, digest_value, _ = layout
+    index = image.read(root / "blobs/sha256" / digest_value[7:])
+    if change == "missing_arm":
+        index["manifests"].pop(2)
+    elif change == "duplicate_arm":
+        index["manifests"].append(copy.deepcopy(index["manifests"][2]))
+    elif change == "wrong_attestation":
+        index["manifests"][3]["annotations"]["vnd.docker.reference.digest"] = index["manifests"][0]["digest"]
+    else:
+        index["manifests"].pop(3)
+    new_digest = replace_index(root, index)
+    with pytest.raises(image.Failure):
+        image.inspect(root, new_digest, "a" * 40)
+
+
 @pytest.fixture
 def bundle(layout, tmp_path, monkeypatch):
-    root, index, _ = layout
+    root, index, configs = layout
     packet_root = tmp_path / "candidate-bundle"
     packet_root.mkdir()
     shutil.copytree(root, packet_root / "layout")
@@ -249,7 +282,10 @@ def bundle(layout, tmp_path, monkeypatch):
                   workflow_sha=env["WORKFLOW_SHA"], diff_sha256=env["DIFF_SHA256"],
                   request_id="fixture", pull_request=42)
     image.write(packet_root / "candidate-source.json", packet)
-    image.write(tmp_path / "candidate-trivy.json", {"Results": [{"Type": "python-pkg", "Class": "lang-pkgs"}]})
+    for arch in image.ARCHITECTURES:
+        image.write(tmp_path / f"candidate-trivy-{arch}.json", {
+            "Metadata": {"ImageID": configs[arch], "ImageConfig": {"architecture": arch, "os": "linux"}},
+            "Results": [{"Type": "python-pkg", "Class": "lang-pkgs"}]})
     return packet_root, packet, index
 
 
@@ -260,13 +296,55 @@ def test_forged_probe_stdout_cannot_issue_independent_verification(bundle, monke
     # A candidate can emit the whole expected report and exit before any checks.
     forged = subprocess.check_output([sys.executable, "-c",
         "print(" + repr(json.dumps(expected)) + "); raise SystemExit(0)"], text=True)
-    monkeypatch.setattr(image, "run", lambda *args, **kwargs: forged)
+    commands = []
+    def run(args, *_args, **_kwargs):
+        commands.append(args)
+        return forged
+    monkeypatch.setattr(image, "run", run)
     monkeypatch.setattr(sys, "argv", ["candidate_image.py", "seal"])
     image.main()
     receipt = image.read(root / "candidate-receipt.json")
     assert receipt["runtime_packaging_probe_verified"] is False
     assert receipt["runtime_probe_evidence"] == "candidate_process_self_report"
     assert receipt["runtime_probe_self_report"] == "pass"
+    assert receipt["scanned_platforms"] == receipt["runtime_probe_platforms"] == ["linux/amd64", "linux/arm64"]
+    probes = [c for c in commands if c[0] == "docker"]
+    assert [c[c.index("--platform") + 1] for c in probes] == ["linux/amd64", "linux/arm64"]
+
+
+@pytest.mark.parametrize("change", ["missing", "copied_amd64", "wrong_config", "arm_finding"])
+def test_each_architecture_needs_its_own_clean_bound_scan(bundle, change):
+    root, _, digest_value = bundle
+    report_path = root.parent / "candidate-trivy-arm64.json"
+    report = image.read(report_path)
+    if change == "missing":
+        report_path.unlink()
+    elif change == "copied_amd64":
+        image.write(report_path, image.read(root.parent / "candidate-trivy-amd64.json"))
+    elif change == "wrong_config":
+        report["Metadata"]["ImageID"] = "sha256:" + "f" * 64
+        image.write(report_path, report)
+    else:
+        report["Results"][0]["Vulnerabilities"] = [{"VulnerabilityID": "fixture"}]
+        image.write(report_path, report)
+    index = image.read(root / "layout/blobs/sha256" / digest_value[7:])
+    with pytest.raises((image.Failure, FileNotFoundError)):
+        image.platform_scans(root.parent, root / "layout", index)
+
+
+def test_archive_scan_inputs_contain_only_the_exact_runtime_manifest(layout, tmp_path):
+    root, digest_value, configs = layout
+    index, _ = image.inspect(root, digest_value, "a" * 40)
+    image.prepare_scans(tmp_path, root, index)
+    for arch, expected in image.runtime_manifests(index).items():
+        scan = tmp_path / f"candidate-scan-{arch}"
+        top = image.read(scan / "index.json")
+        assert top["manifests"] == [expected]
+        manifest = image.read(scan / "blobs/sha256" / expected["digest"][7:])
+        assert manifest["config"]["digest"] == configs[arch]
+        image.verify_layout(scan, expected["digest"], manifest)
+        for path in (scan / "blobs/sha256").iterdir():
+            assert path.read_bytes() == (root / "blobs/sha256" / path.name).read_bytes()
 
 
 @pytest.mark.parametrize("phase", ["ghcr", "ecr"])
@@ -274,6 +352,7 @@ def test_publisher_partial_rerun_keeps_producer_digest_and_tag(bundle, monkeypat
     root, packet, digest_value = bundle
     packet.update(workflow_run_id="123", workflow_run_attempt="1", image=image.IMAGE,
                   digest=digest_value, scanned_before_publish=True,
+                  scanned_platforms=image.PLATFORMS, runtime_probe_platforms=image.PLATFORMS,
                   runtime_packaging_probe_verified=False,
                   runtime_probe_evidence="candidate_process_self_report", runtime_probe_self_report="pass")
     image.write(root / "candidate-receipt.json", packet)

@@ -44,7 +44,7 @@ jobs:
   build:
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     permissions:
       contents: read
     outputs:
@@ -76,13 +76,17 @@ jobs:
           exit-code: '1'
           format: json
           output: ${{ runner.temp }}/source-secret-scan.json
+      # ARM emulation is limited to build/packaging compatibility, never SLO measurement.
+      - uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
+        with:
+          platforms: arm64
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
       - name: Build once without registry or AWS publisher credentials
         id: build
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: ${{ runner.temp }}/candidate-bundle/context
-          platforms: linux/amd64
+          platforms: linux/amd64,linux/arm64
           outputs: type=oci,dest=${{ runner.temp }}/candidate-bundle/layout,tar=false,oci-artifact=false
           provenance: mode=max
           sbom: true
@@ -90,21 +94,43 @@ jobs:
             org.opencontainers.image.source=https://github.com/Softbank-Hackathon-Finals/demo-chat
             org.opencontainers.image.revision=${{ env.SOURCE_SHA }}
           tags: demo-candidate:build
-      - name: Scan the built OCI bytes
-        id: scan
+      - name: Prepare exact manifest inputs for both architecture scans
+        env:
+          BUILD_DIGEST: ${{ steps.build.outputs.digest }}
+        run: python3 scripts/candidate_image.py prepare-scans
+      - name: Scan the built OCI bytes (amd64)
+        id: scan_amd64
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        env:
+          TRIVY_PLATFORM: linux/amd64
         with:
           scan-type: image
-          input: ${{ runner.temp }}/candidate-bundle/layout
+          input: ${{ runner.temp }}/candidate-scan-amd64
           scanners: vuln,secret
           severity: HIGH,CRITICAL
           ignore-unfixed: true
           exit-code: '1'
           format: json
-          output: ${{ runner.temp }}/candidate-trivy.json
+          output: ${{ runner.temp }}/candidate-trivy-amd64.json
+          timeout: 10m
+      - name: Scan the built OCI bytes (arm64)
+        if: always() && steps.scan_amd64.outcome != 'skipped'
+        id: scan_arm64
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        env:
+          TRIVY_PLATFORM: linux/arm64
+        with:
+          scan-type: image
+          input: ${{ runner.temp }}/candidate-scan-arm64
+          scanners: vuln,secret
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: '1'
+          format: json
+          output: ${{ runner.temp }}/candidate-trivy-arm64.json
           timeout: 10m
       - name: Report package advisories and counts without secret matches
-        if: always() && steps.scan.outcome != 'skipped'
+        if: always() && (steps.scan_amd64.outcome != 'skipped' || steps.scan_arm64.outcome != 'skipped')
         run: python3 scripts/candidate_image.py scan-summary
       - name: Check packaging in an isolated build-job container and seal the receipt
         env:
@@ -149,21 +175,41 @@ jobs:
           merge-multiple: true
       - name: Validate exact-run source binding and every OCI blob
         run: python3 scripts/candidate_image.py verify
-      - name: Scan again on the fresh publisher without executing candidate code
-        id: scan
+      - name: Prepare exact manifest inputs for both architecture scans
+        run: python3 scripts/candidate_image.py prepare-scans
+      - name: Scan again on the fresh publisher without executing candidate code (amd64)
+        id: scan_amd64
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        env:
+          TRIVY_PLATFORM: linux/amd64
         with:
           scan-type: image
-          input: ${{ runner.temp }}/candidate-bundle/layout
+          input: ${{ runner.temp }}/candidate-scan-amd64
           scanners: vuln,secret
           severity: HIGH,CRITICAL
           ignore-unfixed: true
           exit-code: '1'
           format: json
-          output: ${{ runner.temp }}/candidate-trivy.json
+          output: ${{ runner.temp }}/candidate-trivy-amd64.json
+          timeout: 10m
+      - name: Scan again on the fresh publisher without executing candidate code (arm64)
+        if: always() && steps.scan_amd64.outcome != 'skipped'
+        id: scan_arm64
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        env:
+          TRIVY_PLATFORM: linux/arm64
+        with:
+          scan-type: image
+          input: ${{ runner.temp }}/candidate-scan-arm64
+          scanners: vuln,secret
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: '1'
+          format: json
+          output: ${{ runner.temp }}/candidate-trivy-arm64.json
           timeout: 10m
       - name: Report package advisories and counts without secret matches
-        if: always() && steps.scan.outcome != 'skipped'
+        if: always() && (steps.scan_amd64.outcome != 'skipped' || steps.scan_arm64.outcome != 'skipped')
         run: python3 scripts/candidate_image.py scan-summary
       - run: |
           sudo apt-get update -qq
@@ -211,21 +257,41 @@ jobs:
           path: ${{ runner.temp }}/candidate-bundle
           merge-multiple: true
       - run: python3 scripts/candidate_image.py verify
-      - name: Recheck the exact bytes before obtaining AWS publisher credentials
-        id: scan
+      - name: Prepare exact manifest inputs for both architecture scans
+        run: python3 scripts/candidate_image.py prepare-scans
+      - name: Recheck the exact bytes before obtaining AWS publisher credentials (amd64)
+        id: scan_amd64
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        env:
+          TRIVY_PLATFORM: linux/amd64
         with:
           scan-type: image
-          input: ${{ runner.temp }}/candidate-bundle/layout
+          input: ${{ runner.temp }}/candidate-scan-amd64
           scanners: vuln,secret
           severity: HIGH,CRITICAL
           ignore-unfixed: true
           exit-code: '1'
           format: json
-          output: ${{ runner.temp }}/candidate-trivy.json
+          output: ${{ runner.temp }}/candidate-trivy-amd64.json
+          timeout: 10m
+      - name: Recheck the exact bytes before obtaining AWS publisher credentials (arm64)
+        if: always() && steps.scan_amd64.outcome != 'skipped'
+        id: scan_arm64
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        env:
+          TRIVY_PLATFORM: linux/arm64
+        with:
+          scan-type: image
+          input: ${{ runner.temp }}/candidate-scan-arm64
+          scanners: vuln,secret
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: '1'
+          format: json
+          output: ${{ runner.temp }}/candidate-trivy-arm64.json
           timeout: 10m
       - name: Report package advisories and counts without secret matches
-        if: always() && steps.scan.outcome != 'skipped'
+        if: always() && (steps.scan_amd64.outcome != 'skipped' || steps.scan_arm64.outcome != 'skipped')
         run: python3 scripts/candidate_image.py scan-summary
       - run: |
           sudo apt-get update -qq
