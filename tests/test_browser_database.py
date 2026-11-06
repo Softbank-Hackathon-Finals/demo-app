@@ -1,10 +1,17 @@
 """The optional reset helper must reject arbitrary connection configuration."""
 
 import json
+import os
 
 import pytest
 
 from tests.browser_database import BrowserDatabase
+
+
+def test_fixture_rejects_platform_without_owner_checks(monkeypatch):
+    monkeypatch.delattr(os, "getuid", raising=False)
+    with pytest.raises(ValueError, match="POSIX"):
+        BrowserDatabase("not-opened-or-connected")
 
 
 @pytest.mark.parametrize(

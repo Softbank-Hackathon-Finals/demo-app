@@ -15,6 +15,8 @@ from app.store import Store
 
 class BrowserDatabase:
     def __init__(self, config_path: str):
+        if os.name != "posix" or not callable(getattr(os, "getuid", None)):
+            raise ValueError("POSIX owner/mode checks required for the isolated database fixture")
         path = Path(config_path)
         if path.is_symlink():
             raise ValueError("private browser fixture required")
