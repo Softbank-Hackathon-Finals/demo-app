@@ -2,19 +2,26 @@ import asyncio
 import json
 import time
 from collections.abc import Callable
+from pathlib import Path
 
-import boto3
+# OpenBao·ESO(리허설은 init container)가 주입하는 DB 자격 파일
+CREDENTIALS_FILE = Path("/run/bravo/database/credentials.json")
 
 
-def fetch_db_credentials(secret_id: str) -> tuple[str, str]:
-    """DB 사용자와 비밀번호를 Secrets Manager에서 직접 읽는다.
+def fetch_db_credentials(secret_id: str | None = None) -> tuple[str, str]:
+    """DB 사용자와 비밀번호를 주입된 자격 파일에서 읽는다.
 
-    플랫폼이 찾아서 OpenBao · ESO 주입으로 고칠 "코드 수정" 등급 의존성으로 일부러 남긴 호출이다(설계 문서 8.10).
-    미리 추상화하거나 환경변수로 바꾸지 않는다.
+    파일이 없거나 형식이 맞지 않으면 값을 남기지 않고 실패한다(fail closed).
+    `secret_id`는 기존 호출과 맞추려고 받기만 하고 쓰지 않는다. Secrets Manager는 부르지 않는다.
     """
-    client = boto3.client("secretsmanager")
-    secret = json.loads(client.get_secret_value(SecretId=secret_id)["SecretString"])
-    return secret["username"], secret["password"]
+    try:
+        secret = json.loads(CREDENTIALS_FILE.read_text(encoding="utf-8"))
+        user, password = secret["username"], secret["password"]
+    except (OSError, ValueError, KeyError, TypeError):
+        raise RuntimeError("db_credentials_unavailable") from None
+    if not isinstance(user, str) or not isinstance(password, str) or not user or not password:
+        raise RuntimeError("db_credentials_unavailable")
+    return user, password
 
 
 class DbCredentials:
