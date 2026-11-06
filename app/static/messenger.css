@@ -1,0 +1,228 @@
+/* Messenger-only presentation. The read-only stage keeps its own layout. */
+body.messenger {
+  color-scheme: light;
+  --ink: #252525; --muted: #7e8286; --soft: #989ca0; --line: #ececed;
+  --wash: #f7f7f8; --ground: #fff; --card: #fff; --brand: #3c1e1e;
+  --accent: #fee500; --accent-wash: #fff9d7; --mine: #fee500; --mine-ink: #252525;
+  --radius: 12px; --shadow: 0 8px 30px #0000000b;
+  display: grid; grid-template-columns: 72px 310px minmax(0,1fr);
+  height: 100dvh; min-height: 0; overflow: hidden; background: white;
+  font-size: 14px; letter-spacing: -.25px;
+}
+.icon-sprite { position: absolute; width: 0; height: 0; overflow: hidden; }
+.messenger svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.65; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+.messenger button { color: var(--ink); font-weight: 500; }
+.messenger button:hover { filter: none; }
+.messenger button:disabled { cursor: not-allowed; }
+.messenger :focus-visible { outline-color: #8d7130; }
+.app-rail { background: #f1f2f3; display: flex; flex-direction: column; align-items: center; gap: 9px; padding: 29px 0 20px; border-right: 1px solid #e8e9eb; z-index: 3; }
+.talk-logo { color: #3c1e1e; background: #fee500; width: 38px; height: 38px; display: grid; place-items: center; border-radius: 13px; margin-bottom: 27px; }
+.talk-logo svg { width: 25px; height: 25px; stroke-width: 2; }
+.rail-button { width: 54px; min-height: 59px; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 5px; padding: 8px 0; background: transparent; color: #8c9096 !important; border-radius: 12px; }
+.rail-button span { font-size: 10px; }
+.rail-button svg { width: 25px; height: 25px; }
+.rail-button.active { color: #262626 !important; background: #e6e7e9; }
+.rail-button.active svg { stroke-width: 2; }
+.rail-button:hover { background: #e8e9eb; }
+.rail-spacer { flex: 1; }
+.my-avatar { width: 37px; height: 37px; padding: 0; margin-top: 8px; background: #d5dbe0; color: #626970 !important; border-radius: 13px; font-size: 13px; }
+.conversation-list { position: relative; display: flex; flex-direction: column; min-width: 0; background: white; border-right: 1px solid #e3e6e8; overflow: hidden; }
+.list-heading { display: flex; justify-content: space-between; align-items: center; padding: 31px 25px 21px; }
+.list-brand { margin: 0 0 4px; font-size: 9px; letter-spacing: 2.3px; color: #a2a5aa; font-weight: 600; }
+.list-heading h1 { margin: 0; font-size: 26px; font-weight: 700; letter-spacing: -1px; }
+.plain-icon { display: inline-grid; place-items: center; padding: 7px; width: 35px; height: 35px; background: transparent; border: 0; color: #4e545a !important; border-radius: 8px; }
+.plain-icon:hover { background: #00000008; }
+.list-search { display: flex; align-items: center; gap: 8px; margin: 0 22px 22px; background: #f3f4f5; border-radius: 8px; padding: 9px 11px; color: #a0a4a8; }
+.list-search svg { width: 15px; height: 15px; }
+.list-search input { border: 0; background: transparent; font-size: 12px; width: 100%; outline-offset: 4px; min-width: 0; padding: 0; }
+.list-search input::placeholder { color: #a0a4a8; }
+.list-section-label { padding: 0 25px; margin: 0 0 12px; color: #999da2; font-size: 11px; }
+.list-section-label span { margin-left: 4px; }
+.sidebar-view { flex: 1; min-height: 0; overflow: auto; }
+.conversation { display: flex; width: 100%; align-items: center; text-align: left; gap: 12px; padding: 18px 21px; border-radius: 0; background: #f5f5f6; }
+.conversation:hover { background: #efeff1; }
+.group-avatar { display: block; position: relative; width: 48px; height: 48px; flex: none; }
+.group-avatar span { position: absolute; display: grid; place-items: center; height: 31px; width: 31px; border-radius: 11px; background: #f6d270; color: #665237; font-size: 13px; border: 2px solid #f5f5f6; }
+.group-avatar span+span { right: 0; bottom: 0; background: #b6cbd7; color: #4a6575; font-size: 10px; }
+.conversation-text { min-width: 0; flex: 1; }
+.conversation-text strong { display: block; font-size: 14px; font-weight: 600; margin-bottom: 5px; white-space: nowrap; }
+.conversation-text strong small { color: #9da0a4; font-size: 10px; margin-left: 4px; font-weight: 400; }
+.conversation-text>span { font-size: 12px; color: #8c9096; display: block; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.conversation-side { align-self: flex-start; display: flex; align-items: flex-end; flex-direction: column; gap: 9px; }
+.conversation-side time { font-size: 10px; color: #a7aaae; }
+.room-live { color: #969a9e; font-size: 8px; letter-spacing: .7px; border: 1px solid #d9dcdf; padding: 1px 4px; border-radius: 4px; }
+.sidebar-note { margin: 33px 23px; border-top: 1px solid #f0f0f1; padding-top: 30px; }
+.note-symbol { display: grid; place-items: center; width: 32px; height: 32px; border: 1px solid #e8e9ec; border-radius: 10px; color: #a3adb6; font-size: 20px; margin-bottom: 13px; }
+.sidebar-note strong { display: block; color: #8a929a; font-size: 12px; font-weight: 500; }
+.sidebar-note p { margin: 7px 0; font-size: 11px; line-height: 1.8; color: #a6abb1; }
+.list-footer { margin-top: auto; display: flex; align-items: center; flex-wrap: wrap; gap: 7px; padding: 17px 23px; color: #969da5; font-size: 10px; border-top: 1px solid #f0f0f1; }
+.list-footer>span:last-child { flex-basis: 100%; font-size: 9px; color: #b0b4b9; }
+.mini-dot { height: 5px; width: 5px; background: #9db6a2; border-radius: 100%; }
+.messenger .shell { position: relative; display: block; height: 100dvh; min-height: 0; max-width: none; padding: 0; margin: 0; width: 100%; min-width: 0; }
+body.messenger .chat-panel { display: flex; height: 100%; width: 100%; border: 0; border-radius: 0; background: #b2c7d9; box-shadow: none; }
+.messenger .chat-header { flex: none; padding: 22px 28px 20px; gap: 12px; border-bottom: 1px solid #93a8b633; background: #b2c7d9; }
+.room-avatar { width: 43px; height: 43px; display: grid; place-items: center; background: #f0d378; color: #665237; border-radius: 15px; font-size: 20px; flex: none; }
+.room-heading { flex: 1; min-width: 0; }
+.room-heading h2 { margin: 0 0 2px; font-size: 16px; font-weight: 600; }
+.room-heading h2 { overflow: hidden; text-overflow: ellipsis; }
+.room-heading h2 span { margin-left: 3px; color: #758797; font-weight: 400; font-size: 13px; }
+.room-heading p { margin: 0; color: #788c9e; font-size: 11px; }
+.room-actions { display: flex; align-items: center; gap: 4px; flex: none; }
+.messenger .env-pill { color: #5e7485; font-size: 10px; padding: 3px 7px; background: #ffffff36; }
+.messenger .env-pill .dot { width: 5px; height: 5px; box-shadow: none; }
+.messenger .connection { color: #7d7b65; font-size: 10px; padding: 3px 5px; background: none; }
+.messenger .connection.online { color: #5e7c6b; }
+.mobile-back, .messenger #share-mobile { display: none; }
+.day-divider { flex: none; text-align: center; padding: 18px 0 2px; }
+.day-divider span { display: inline-block; color: #f7fafc; background: #94adbf; border-radius: 20px; padding: 4px 14px; font-size: 10px; }
+.messenger #log { padding: 24px 30px 30px; gap: 20px; min-height: 0; }
+.messenger .msg { max-width: min(78%,580px); animation-duration: .14s; align-items: flex-start; gap: 10px; }
+.messenger .avatar { width: 36px; height: 36px; border-radius: 13px; background: hsl(var(--hue,190) 22% 85%); color: hsl(var(--hue,190) 20% 40%); }
+.messenger .meta { color: #6c8395; font-size: 10px; gap: 8px; margin: 0 0 5px; }
+.messenger .meta .author { color: #3c4b56; font-size: 11px; font-weight: 500; }
+.messenger .meta .served, .messenger .meta .mid { display: none; }
+.messenger .bubble { position: relative; border: 0; background: white; border-radius: 3px 11px 11px; padding: 11px 13px; font-size: 13px; line-height: 1.7; box-shadow: 0 1px 1px #0000000b; }
+.messenger .bubble::before { content: ''; position: absolute; top: 9px; left: -5px; border-top: 5px solid white; border-left: 6px solid transparent; }
+.messenger .mine .avatar, .messenger .mine .author { display: none; }
+.messenger .mine .bubble { background: #fee500; color: #292522; border-radius: 11px 3px 11px 11px; }
+.messenger .mine .bubble::before { left: auto; right: -5px; border-left: 0; border-right: 6px solid transparent; border-top-color: #fee500; }
+.messenger .bubble a { color: #736100; font-size: 12px; }
+.messenger .empty-state { color: #718a9f; }
+.messenger .empty-state .empty-talk { margin: 0 auto 18px; background: #d6e1e96b; width: 66px; height: 59px; border-radius: 23px; }
+.empty-talk svg { width: 34px; height: 34px; stroke-width: 1.2; color: #8da5b8; }
+.messenger .empty-state h3 { font-size: 16px; margin: 0 0 9px; font-weight: 500; color: #627e93; }
+.messenger .empty-state p { font-size: 12px; line-height: 1.9; }
+.messenger .empty-state small { display: block; margin-top: 15px; font-size: 10px; color: #849bad; }
+.messenger .system { background: #97afc2; color: #f8fbfd; border: 0; font-size: 10px; border-radius: 6px; max-width: 95%; }
+.messenger .notice { padding: 9px 26px; font-size: 11px; background: #fff4d1; color: #856a2c; border: 0; }
+.messenger #form { position: relative; padding: 11px 22px 10px; background: white; flex: none; }
+.messenger .identity { margin: 0 0 5px; gap: 7px; }
+.messenger .identity label { color: #a5a5a5; font-size: 10px; }
+.messenger #name { width: 118px; padding: 3px 0; font-size: 11px; border: 0; border-radius: 0; background: transparent; }
+.messenger .identity>span { margin-left: auto; color: #b2b4b7; font-size: 9px; }
+.messenger .composer { border: 0; border-radius: 0; }
+.messenger .composer:focus-within { border: 0; }
+.messenger .composer textarea { padding: 5px 0 10px; font-size: 13px; min-height: 66px; max-height: 115px; }
+.messenger .composer textarea::placeholder { color: #b2b5b8; }
+.messenger .composer-actions { padding: 0; gap: 10px; }
+.messenger .composer-actions .plain-icon { width: 25px; height: 28px; padding: 0; color: #9a9ea2 !important; }
+.messenger .file-button { display: grid; place-items: center; width: 25px; height: 28px; padding: 0; color: #9a9ea2; }
+.messenger .file-button svg { height: 20px; width: 20px; }
+.pay-button { display: inline-flex; align-items: center; gap: 5px; padding: 3px 7px; font-size: 11px; background: transparent; color: #787b7e !important; }
+.pay-button:hover { background: #f6f6f6; }
+.pay-button>span { display: grid; place-items: center; background: #fee500; border-radius: 50%; color: #4b3a20; width: 19px; height: 19px; font-size: 11px; font-weight: 700; }
+.messenger #counter { margin-left: auto; margin-right: 0; font-size: 9px; color: #b4b6b9; }
+.messenger #send { background: #fee500; color: #3c3422; padding: 8px 20px; font-size: 12px; border-radius: 5px; }
+.composer-hint { margin: 7px 0 0; text-align: right; font-size: 9px; color: #bdc0c3; }
+.messenger .feedback { font-size: 10px; padding: 0; margin: 4px 0 0; }
+.messenger .feedback:empty { display: none; }
+.messenger #outbox { flex: none; font-size: 11px; padding: 6px 22px; }
+.pending-transfers { flex: none; border-radius: 0; background: #fff3c4; color: #8a6d2c !important; padding: 9px; font-size: 11px; }
+.messenger .jump { bottom: 190px; background: #fff; color: #586b78; font-size: 11px; }
+.messenger .file-preview { flex: none; margin: 0; border-radius: 0; background: #f8fafb; font-size: 11px; }
+.emoji-picker { position: absolute; left: 20px; bottom: 90px; width: 245px; display: grid; grid-template-columns: repeat(6,1fr); padding: 10px; background: white; box-shadow: 0 5px 30px #0002; border: 1px solid #eee; border-radius: 14px; z-index: 2; }
+.emoji-picker button { padding: 5px 0; font-size: 23px; background: transparent; border-radius: 7px; }
+.emoji-picker button:hover { background: #f4f4f4; }
+.friends-list { list-style: none; padding: 0; margin: 0; }
+.friends-list button { display: flex; align-items: center; width: 100%; gap: 12px; text-align: left; background: none; padding: 13px 24px; border-radius: 0; }
+.friends-list button:hover { background: #f7f7f8; }
+.friend-avatar { display: grid; place-items: center; width: 39px; height: 39px; border-radius: 14px; background: #e9dcbf; color: #8d7958; font-size: 13px; flex: none; }
+.friends-list strong { font-size: 13px; font-weight: 500; overflow-wrap: anywhere; }
+.friends-list small { display: block; font-size: 10px; color: #aaa; margin-top: 2px; }
+.member-note, .sidebar-empty { margin: 25px; color: #a4a8ae; font-size: 11px; line-height: 1.8; }
+.more-profile { display: flex; align-items: center; flex-direction: column; margin: 8px 20px 25px; }
+.profile-avatar { display: grid; place-items: center; background: #e0e7ec; color: #879baa; width: 65px; height: 65px; border-radius: 23px; font-size: 25px; margin-bottom: 10px; }
+.more-profile strong { font-size: 16px; }
+.more-profile small { font-size: 11px; color: #aaa; margin-top: 4px; }
+.more-view>button, .more-view>a { display: flex; align-items: center; gap: 12px; color: #555; background: none; text-decoration: none; padding: 17px 26px; border-radius: 0; width: 100%; font-size: 13px; }
+.more-view>button:hover, .more-view>a:hover { background: #f8f8f8; }
+.more-view>button>span, .more-view>a>span { margin-left: auto; color: #aaa; }
+.more-view svg { width: 20px; height: 20px; color: #888; }
+.demo-description { padding: 25px; font-size: 11px; line-height: 1.9; color: #aaa; border-top: 1px solid #eee; margin-top: 20px; }
+.demo-description strong { color: #8e969d; font-weight: 500; }
+.room-search-panel { flex: none; padding: 10px 25px; background: #d4e0e9; display: flex; gap: 10px; align-items: center; }
+.room-search-panel label { font-size: 10px; color: #6f8494; flex: none; }
+.room-search-panel input { min-width: 0; width: 100%; font-size: 12px; padding: 6px 10px; border: 0; }
+.room-search-panel>span { font-size: 11px; color: #6f8494; white-space: nowrap; }
+body.messenger .observe { display: none; position: absolute; inset: 0 0 0 auto; width: min(350px,100%); height: 100%; overflow-y: auto; border: 0; border-left: 1px solid #dde1e4; border-radius: 0; padding: 22px; z-index: 4; background: white; box-shadow: -12px 0 30px #0001; }
+body.messenger.panel-open .observe { display: block; }
+.messenger .observe-head h2 { font-size: 17px; }
+.messenger .observe-head .eyebrow { font-size: 9px; }
+.messenger .observe .icon-button { color: #555; }
+.messenger .observe strong { overflow-wrap: anywhere; }
+.wallet-dialog { width: min(440px,calc(100vw - 24px)); max-height: 90dvh; padding: 0; border: 0; border-radius: 18px; background: white; color: #252525; }
+.messenger dialog::backdrop { background: #18263255; backdrop-filter: blur(3px); }
+.wallet-heading { display: flex; align-items: center; justify-content: space-between; padding: 20px 22px 10px; position: sticky; top: 0; z-index: 1; background: white; }
+.wallet-heading h2 { font-size: 18px; margin: 0; }
+.wallet-heading small { font-size: 10px; color: #aaa; font-weight: 400; margin-left: 5px; }
+body.messenger #wallet { display: flex; height: auto; max-height: none; overflow: visible; padding: 10px 20px 20px; }
+.messenger #wallet .card { box-shadow: none; border: 1px solid #eee; border-radius: 13px; }
+.messenger #wallet .onboard h1 { font-size: 23px; }
+.messenger .onboard h1 span { color: #7e6800; }
+.messenger #wallet .account { background: #fee500; color: #3c3020; border-color: transparent; }
+.messenger #wallet .account .small-label, .messenger #balance-note { color: #8c783b; }
+.messenger #wallet .account .code { color: #7c6737; background: #ffffff80; }
+.messenger .ghost-light { background: #ffffff80; color: #78602d; }
+.messenger #open-send { color: #3c3020; }
+.messenger .sheet-cta { background: #fee500; color: #3c3020; }
+.messenger .confirm h2 .em { color: #90751c; }
+.messenger .done-mark[data-state="ok"] span { border-color: #5b4a22; }
+.transfer .bubble { white-space: normal; width: min(260px,60vw); padding: 0; overflow: visible; }
+.transfer .bubble .transfer-head { display: flex; align-items: center; gap: 7px; background: #fee500; color: #534322; font-size: 11px; font-weight: 600; padding: 11px 15px; border-radius: 3px 11px 0 0; }
+.transfer .bubble .transfer-details { display: block; background: #fff; padding: 15px; color: #333; }
+.transfer-details strong { display: block; font-size: 23px; margin: 0 0 7px; letter-spacing: -.8px; }
+.transfer-details p { font-size: 12px; margin: 0; }
+.transfer-details small { display: block; color: #a0a0a0; font-size: 10px; margin: 4px 0 0; }
+.transfer .bubble button { background: #fafafa; border: 1px solid #ededed; border-radius: 5px; width: 100%; font-size: 11px; padding: 7px; margin-top: 13px; }
+.messenger .mine.transfer .bubble { background: white; }
+.messenger #share-dialog { border: 0; width: min(390px,calc(100vw - 28px)); border-radius: 18px; padding: 24px; }
+.messenger #share-dialog h2 { font-size: 18px; }
+.messenger #share-dialog p { font-size: 12px; color: #888; }
+.messenger #copy-link { background: #fee500; color: #3c3020; }
+.messenger .toast { background: #333d; color: white; border-radius: 8px; z-index: 10; font-size: 12px; }
+@media (min-width: 1700px) { body.messenger { grid-template-columns: 80px 340px minmax(0,1fr); } .messenger .chat-header { padding: 25px 35px; } .messenger #log { padding: 25px 40px; } }
+@media (max-width: 1000px) { body.messenger { grid-template-columns: 65px 270px minmax(0,1fr); } .messenger .chat-header { padding: 18px; } .messenger .connection { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); } .room-heading p { font-size: 10px; } }
+@media (max-width: 760px) {
+  body.messenger { display: grid; grid-template-columns: 1fr; grid-template-rows: minmax(0,1fr) 66px; }
+  .app-rail { grid-area: 2 / 1; flex-direction: row; justify-content: space-around; padding: 4px 10px max(4px,env(safe-area-inset-bottom)); height: auto; border: 0; border-top: 1px solid #ececee; gap: 0; background: #fafafa; }
+  .app-rail .talk-logo, .rail-spacer, .app-rail #share, .app-rail .my-avatar { display: none; }
+  .rail-button { min-height: 50px; width: 59px; border-radius: 8px; gap: 3px; }
+  .rail-button.active { background: transparent; }
+  .rail-button span { font-size: 9px; }
+  .rail-button svg { width: 23px; height: 23px; }
+  .conversation-list { grid-area: 1 / 1; border: 0; }
+  .messenger .shell { grid-area: 1 / 1; height: 100dvh; }
+  body.messenger[data-mobile-room="true"] { grid-template-rows: minmax(0,1fr); }
+  body.messenger[data-mobile-room="true"] .app-rail, body.messenger[data-mobile-room="true"] .conversation-list { display: none; }
+  body.messenger[data-mobile-room="false"] .shell { display: none; }
+  .messenger .chat-header { padding: max(12px,env(safe-area-inset-top)) 10px 12px; gap: 8px; }
+  .mobile-back { display: grid; width: 28px; padding: 3px; }
+  .room-avatar { width: 33px; height: 33px; border-radius: 11px; font-size: 16px; }
+  .room-heading h2 { font-size: 14px; white-space: nowrap; }
+  .room-heading h2 span { font-size: 11px; }
+  .room-heading p { display: none; }
+  .room-actions { gap: 0; }
+  .room-actions .plain-icon { width: 29px; height: 31px; padding: 5px; }
+  .room-actions .plain-icon svg { width: 19px; height: 19px; }
+  .messenger #share-mobile { display: grid; }
+  .messenger .env-pill { padding: 3px 5px; font-size: 9px; gap: 4px; }
+  .messenger #log { padding: 20px 16px; gap: 17px; }
+  .messenger .msg { max-width: 87%; gap: 8px; }
+  .messenger .bubble { font-size: 13px; }
+  .messenger .avatar { width: 31px; height: 31px; border-radius: 11px; font-size: 12px; }
+  .messenger #form { padding: 8px 13px max(8px,env(safe-area-inset-bottom)); }
+  .messenger .composer textarea { min-height: 53px; padding-top: 5px; font-size: 15px; }
+  .messenger .composer-actions { gap: 9px; }
+  .messenger #send { padding: 7px 15px; }
+  .composer-hint { display: none; }
+  .messenger #name { font-size: 12px; width: 106px; }
+  .messenger .identity>span { font-size: 9px; }
+  .messenger .jump { bottom: 160px; }
+  .room-search-panel { padding: 8px 12px; gap: 7px; }
+  .room-search-panel label { max-width: 55px; }
+  .messenger .sheet { width: 100%; height: 100dvh; }
+  .messenger .observe { width: min(350px,94vw); }
+  .messenger .day-divider { padding-top: 13px; }
+  .list-heading { padding-top: 30px; }
+}
+@media (prefers-reduced-motion: reduce) { .messenger *, .messenger *::before, .messenger *::after { scroll-behavior: auto !important; animation-duration: .001ms !important; transition-duration: .001ms !important; } }

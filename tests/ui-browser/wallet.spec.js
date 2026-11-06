@@ -8,15 +8,18 @@ const ledgerRows = async (request) => (await (await request.get('/api/messages')
 async function openAccount(page, name) {
   await page.goto('/');
   await expect(page.locator('#conn')).toHaveText('연결됨');
+  await page.locator('#nav-wallet').click();
   await page.locator('#open-name').fill(name);
   await page.locator('#open-account').click();
   await expect(page.locator('#balance')).toHaveText('100,000P');
-  return (await page.locator('#account-code').textContent()).replace('BRV-', '');
+  const code = (await page.locator('#account-code').textContent()).replace('BRV-', '');
+  await page.locator('#wallet-close').click();
+  return code;
 }
 
 // recipient → amount (keypad) → confirm → result, as a participant would.
 async function startTransfer(page, code, digits) {
-  await page.locator('#open-send').click();
+  await page.locator('#composer-pay').click();
   await page.locator(`#to-list [data-code="${code}"]`).click();
   for (const key of digits) await page.locator(`.keypad [data-key="${key}"]`).click();
   await page.locator('#amount-next').click();
@@ -28,7 +31,7 @@ test('two participants open accounts and a transfer moves points exactly once', 
   const other = await (await browser.newContext()).newPage();
   await openAccount(page, '방문자 07');
   const code = await openAccount(other, '방문자 03');
-  await page.locator('#open-send').click();
+  await page.locator('#composer-pay').click();
   await expect(page.locator('#to-list')).toContainText('방문자 03');
   await page.locator('#to-search').fill('03');
   await expect(page.locator('#to-list button')).toHaveCount(1);
@@ -58,7 +61,42 @@ test('two participants open accounts and a transfer moves points exactly once', 
   await expect(other.locator('#history')).toContainText('+30,000P');
   await expect(page.locator('#history')).toContainText('점심값');
   expect((await ledgerRows(request)).length).toBe(3); // two openings and one transfer
-  await expect(page.locator('#log .msg')).toHaveCount(0); // ledger rows are not chat
+  await expect(page.locator('#log .transfer')).toHaveCount(1); // one saved transfer card; openings stay out of chat
+  await expect(page.locator('#log .transfer')).toContainText('30,000P');
+  await expect(other.locator('#log .transfer')).toHaveCount(1);
+});
+
+test('a stream-confirmed transfer with a lost POST response shows one debit and one card', async ({ page, browser, request }) => {
+  const other = await (await browser.newContext()).newPage();
+  const code = await openAccount(other, '받는 사람');
+  await openAccount(page, '보내는 사람');
+  let release;
+  const held = new Promise(resolve => { release = resolve; });
+  let first = true;
+  const bodies = [];
+  await page.route('**/api/messages', async route => {
+    if (route.request().method() !== 'POST') return route.continue();
+    bodies.push(route.request().postData());
+    if (!first) return route.continue();
+    first = false;
+    await route.fetch(); // Stored and streamed, but HTTP acknowledgement is withheld.
+    await held;
+    await route.abort('failed');
+  });
+  try {
+    await startTransfer(page, code, ['1', '0', '0', '0', '0']);
+    await page.locator('#transfer-send').click();
+    await expect(page.locator('#log .transfer')).toHaveCount(1);
+    await expect(page.locator('#balance')).toHaveText('90,000P');
+    await expect(page.locator('#done-mark')).toHaveAttribute('data-state', 'pending');
+    release();
+    await expect(page.locator('#done-mark')).toHaveAttribute('data-state', 'ok', { timeout: 8000 });
+    await expect(page.locator('#log .transfer')).toHaveCount(1);
+    await expect(other.locator('#balance')).toHaveText('110,000P');
+    expect(bodies.length).toBeGreaterThanOrEqual(2);
+    expect(new Set(bodies).size).toBe(1);
+    expect((await ledgerRows(request)).filter(row => row.body.includes('"t":"transfer"')).length).toBe(1);
+  } finally { release(); }
 });
 
 test('a transfer during the write pause and switch is debited once and re-verified on the target', async ({ page, browser, request }) => {
@@ -114,7 +152,7 @@ test('a reload resumes the saved ledger instead of replaying, and overdraft is r
   await page.reload();
   await expect(page.locator('#balance')).toHaveText('60,000P');
   expect(sockets[0]).not.toBeNull();
-  await page.locator('#open-send').click();
+  await page.locator('#composer-pay').click();
   await page.locator(`#to-list [data-code="${code}"]`).click();
   await page.keyboard.type('60001');
   await expect(page.locator('#amount-hint')).toHaveText('잔액이 부족해요 · 보낼 수 있는 금액 60,000P');
@@ -146,19 +184,19 @@ test('the read-only stage view shows conservation, the live feed and the switch'
   expect(writes).toEqual([]);
 });
 
-test('phone home: tab bar, recent recipient shortcut and result actions', async ({ browser }) => {
+test('phone chat: inline transfer, wallet history and recent recipient shortcut', async ({ browser }) => {
   test.slow(); // a long multi-step flow; WebKit under a full parallel run can exceed the default budget
   const friend = await (await browser.newContext()).newPage();
   const code = await openAccount(friend, '김하늘');
   const page = await (await browser.newContext({ viewport: { width: 390, height: 844 } })).newPage();
   await page.goto('/');
   await expect(page.locator('#conn')).toHaveText('연결됨');
-  await page.locator('#tab-send').click();
-  await expect(page.locator('#toast')).toHaveText('먼저 계좌를 만들어 주세요');
+  await page.locator('#composer-pay').click();
+  await expect(page.locator('#toast')).toHaveText('모의 포인트 지갑을 먼저 만들어 주세요');
   await page.locator('#open-name').fill('방문자 07'); await page.locator('#open-account').click();
   await expect(page.locator('#balance')).toHaveText('100,000P');
+  await expect(page.locator('#send-sheet')).toBeVisible(); // account creation returns directly to the requested transfer
   await expect(page.locator('#recent-card')).toBeHidden();
-  await page.locator('#tab-send').click();
   await expect(page.locator('#to-recent-wrap')).toBeHidden();
   await page.locator(`#to-list [data-code="${code}"]`).click();
   await page.locator('[data-add="10000"]').click(); await page.locator('#amount-next').click();
@@ -166,10 +204,8 @@ test('phone home: tab bar, recent recipient shortcut and result actions', async 
   await expect(page.locator('#done-mark')).toHaveAttribute('data-state', 'ok');
   await expect(page.locator('#done-share')).toBeEnabled();
   await page.locator('#done-history').click();
-  await expect(page.locator('body')).toHaveAttribute('data-tab', 'history');
-  await expect(page.locator('#account')).toBeHidden();
+  await expect(page.locator('#wallet-dialog')).toBeVisible();
   await expect(page.locator('#history')).toContainText('김하늘에게');
-  await page.locator('#tab-home').click();
   await expect(page.locator('#recent button')).toHaveText(['김김하늘']);
   await page.locator(`#recent [data-code="${code}"]`).click();
   await expect(page.locator('#step-amount')).toBeVisible();
@@ -177,7 +213,8 @@ test('phone home: tab bar, recent recipient shortcut and result actions', async 
   await page.locator('#sheet-back').click();
   await expect(page.locator('#to-recent')).toContainText('김하늘');
   await page.locator('#sheet-close').click();
-  await page.locator('#tab-chat').click();
+  await page.locator('#composer-pay').click(); // dismisses the wallet and opens the transfer sheet
+  await page.locator('#sheet-close').click();
   await expect(page.locator('#send')).toBeVisible();
   await expect(page.locator('#wallet')).toBeHidden();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
@@ -186,6 +223,7 @@ test('phone home: tab bar, recent recipient shortcut and result actions', async 
 test('one tap opens an account with a ready-made name', async ({ page }) => {
   await page.goto('/');
   await expect(page.locator('#conn')).toHaveText('연결됨');
+  await page.locator('#nav-wallet').click();
   await expect(page.locator('#open-name')).toHaveValue(/^참여자 \d{4}$/);
   const name = await page.locator('#open-name').inputValue();
   await page.locator('#open-account').click();

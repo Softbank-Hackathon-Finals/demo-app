@@ -125,7 +125,6 @@ test('reconnect asks after the last streamed id and retrieves messages sent whil
 test('mobile layout, local preview and sharing omit query tokens', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/?token=do-not-share#private');
-  await page.locator('#tab-chat').click(); // phones open on the wallet tab
   await expect(page.locator('#send')).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.locator('#file').setInputFiles({ name: 'sample.png', mimeType: 'image/png', buffer: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jWZkAAAAASUVORK5CYII=', 'base64') });
@@ -133,13 +132,14 @@ test('mobile layout, local preview and sharing omit query tokens', async ({ page
   await page.locator('#file-preview button').click();
   await expect(page.locator('#file-preview')).toBeHidden();
   await page.locator('#share-mobile').click();
-  await expect(page.locator('#share-url')).toHaveValue('http://127.0.0.1:18922/');
+  const sharedAddress = `${new URL(page.url()).origin}/`;
+  await expect(page.locator('#share-url')).toHaveValue(sharedAddress);
   await expect(page.locator('#qr')).toBeVisible();
   const pixels = await page.locator('#qr').evaluate((canvas) => ({
     width: canvas.width, height: canvas.height,
     data: [...canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height).data],
   }));
-  expect(jsQR(Uint8ClampedArray.from(pixels.data), pixels.width, pixels.height)?.data).toBe('http://127.0.0.1:18922/');
+  expect(jsQR(Uint8ClampedArray.from(pixels.data), pixels.width, pixels.height)?.data).toBe(sharedAddress);
   await expect(page.locator('#share-note')).toContainText('현재 PC 전용');
 });
 

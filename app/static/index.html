@@ -4,30 +4,58 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="referrer" content="no-referrer">
-  <meta name="theme-color" content="#0f2a3a">
-  <title>Bravo 뱅크 · 모바일 뱅킹</title>
+  <meta name="theme-color" content="#fee500">
+  <title>브라보톡 · 대화는 계속됩니다</title>
   <link rel="stylesheet" href="/chat.css">
+  <link rel="stylesheet" href="/messenger.css">
   <script type="module" src="/chat.js"></script>
 </head>
-<body data-tab="home">
-  <header class="topbar">
-    <div class="brand">
-      <span class="mark" aria-hidden="true">B</span>
-      <div><strong>Bravo 뱅크</strong><small>모바일 뱅킹 · 모의 서비스</small></div>
-    </div>
-    <div class="top-status" aria-label="현재 접속 상태">
-      <span id="env-pill" class="env-pill" data-env="unknown" title="이 화면을 지금 처리하는 앱의 환경"><span class="dot" aria-hidden="true"></span><span id="env-pill-text">확인 중</span></span>
-      <span id="conn" class="connection" role="status">연결 중</span>
-    </div>
-    <div class="top-actions">
-      <button id="panel-toggle" class="ghost" type="button" aria-controls="observe" aria-expanded="false">전환 관찰</button>
-      <button id="share" class="secondary" type="button">휴대폰으로 참여</button>
-      <button id="share-mobile" class="icon-button" type="button" aria-label="참여 QR 열기">QR</button>
-    </div>
-  </header>
+<body class="messenger" data-tab="chat" data-view="chats" data-mobile-room="true">
+<svg class="icon-sprite" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><symbol id="i-chat" viewBox="0 0 24 24"><path d="M20 11a8 8 0 0 1-8 8H8l-5 3 1-6a8 8 0 1 1 16-5Z"/></symbol><symbol id="i-people" viewBox="0 0 24 24"><circle cx="9" cy="7" r="4"/><path d="M2 22v-3a7 7 0 0 1 14 0v3M17 4a4 4 0 0 1 0 8m2 3a6 6 0 0 1 3 5v2"/></symbol><symbol id="i-wallet" viewBox="0 0 24 24"><path d="M3 6h17v15H3zM3 6V3h14v3M16 11h6v5h-6z"/></symbol><symbol id="i-more" viewBox="0 0 24 24"><circle cx="4" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="20" cy="12" r="1"/></symbol><symbol id="i-search" viewBox="0 0 24 24"><circle cx="10" cy="10" r="7"/><path d="m15 15 7 7"/></symbol><symbol id="i-back" viewBox="0 0 24 24"><path d="m14 4-8 8 8 8"/></symbol><symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 4v16M4 12h16"/></symbol><symbol id="i-close" viewBox="0 0 24 24"><path d="m5 5 14 14M5 19 19 5"/></symbol><symbol id="i-smile" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M8 15s4 4 8 0M8 9h.01M16 9h.01"/></symbol><symbol id="i-image" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8" cy="8" r="1.5"/><path d="m3 17 6-6 4 4 3-3 5 5"/></symbol><symbol id="i-qr" viewBox="0 0 24 24"><path d="M2 2h7v7H2zM15 2h7v7h-7zM2 15h7v7H2zM15 15h3v3h-3zM21 14v8h-6M12 2v3M2 12h4M12 10v4h-2M12 21v1"/></symbol><symbol id="i-monitor" viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 22h8M12 17v5m-7-8 4-4 4 2 5-6"/></symbol><symbol id="i-arrow" viewBox="0 0 24 24"><path d="m5 12 7-7 7 7M12 5v15"/></symbol></svg>
+  <nav class="app-rail" aria-label="브라보톡 메뉴">
+    <a class="talk-logo" href="/" aria-label="브라보톡 홈"><svg aria-hidden="true"><use href="#i-chat"/></svg></a>
+    <button id="nav-friends" class="rail-button" type="button" data-view="friends" aria-label="참여자" aria-pressed="false"><svg aria-hidden="true"><use href="#i-people"/></svg><span>참여자</span></button>
+    <button id="nav-chats" class="rail-button active" type="button" data-view="chats" aria-label="채팅" aria-pressed="true"><svg aria-hidden="true"><use href="#i-chat"/></svg><span>채팅</span></button>
+    <button id="nav-wallet" class="rail-button" type="button" aria-label="포인트 지갑"><svg aria-hidden="true"><use href="#i-wallet"/></svg><span>지갑</span></button>
+    <button id="nav-more" class="rail-button" type="button" data-view="more" aria-label="더보기" aria-pressed="false"><svg aria-hidden="true"><use href="#i-more"/></svg><span>더보기</span></button>
+    <div class="rail-spacer"></div>
+    <button id="share" class="rail-button" type="button" aria-label="참여 QR 열기"><svg aria-hidden="true"><use href="#i-qr"/></svg><span>초대</span></button>
+    <button id="my-profile" class="my-avatar" type="button" aria-label="내 이름 수정"><span id="my-initial">나</span></button>
+  </nav>
+
+  <aside class="conversation-list" aria-label="대화 목록">
+    <header class="list-heading"><div><p class="list-brand">BRAVO TALK</p><h1 id="list-title">채팅</h1></div>
+      <button id="invite" class="plain-icon" type="button" aria-label="대화방에 초대"><svg aria-hidden="true"><use href="#i-plus"/></svg></button></header>
+    <label id="list-search-wrap" class="list-search"><svg aria-hidden="true"><use href="#i-search"/></svg><input id="list-search" type="search" placeholder="이름이나 대화 내용 검색" autocomplete="off"><span class="sr-only">대화 목록 검색</span></label>
+    <section id="chats-view" class="sidebar-view">
+      <p class="list-section-label">참여 중인 대화 <span>1</span></p>
+      <button id="room-open" class="conversation selected" type="button" aria-label="브라보 라운지 대화 열기">
+        <span class="group-avatar" aria-hidden="true"><span>B</span><span>우리</span></span>
+        <span class="conversation-text"><strong>브라보 라운지 <small id="list-members">공개방</small></strong><span id="room-preview">대화도, 포인트도 함께 나눠요.</span></span>
+        <span class="conversation-side"><time id="room-time"></time><span class="room-live">LIVE</span></span>
+      </button>
+      <p id="list-empty" class="sidebar-empty" hidden>검색 결과가 없어요.</p>
+      <div class="sidebar-note"><span class="note-symbol">↔</span><strong>환경이 바뀌어도, 대화는 계속.</strong><p>같은 주소에서 메시지와 첨부파일,<br>모의 포인트를 주고받아 보세요.</p></div>
+    </section>
+    <section id="friends-view" class="sidebar-view" hidden>
+      <p class="list-section-label">대화에서 확인한 참여자 <span id="friend-count">0</span></p>
+      <ul id="friends-list" class="friends-list"></ul>
+      <p class="member-note">이름은 참여자가 정한 별명이에요.<br>선택하면 같은 공개 대화방으로 이동해요.</p>
+    </section>
+    <section id="more-view" class="sidebar-view more-view" hidden>
+      <div class="more-profile"><span class="profile-avatar">B</span><strong id="profile-name">참여자</strong><small>브라보톡에 오신 걸 환영해요</small></div>
+      <button id="more-wallet" type="button"><svg aria-hidden="true"><use href="#i-wallet"/></svg>포인트 지갑<span>›</span></button>
+      <button id="more-observe" type="button"><svg aria-hidden="true"><use href="#i-monitor"/></svg>전환 관찰<span>›</span></button>
+      <a href="/stage.html" target="_blank" rel="noopener"><svg aria-hidden="true"><use href="#i-monitor"/></svg>발표 화면<span>↗</span></a>
+      <div class="demo-description"><strong>가볍게 대화하고, 자유롭게 옮기고.</strong><p>클라우드 이전을 체험하는 독립 데모입니다. 하나의 공개 대화방과 모의 포인트를 사용해요.</p></div>
+    </section>
+    <footer class="list-footer"><span class="mini-dot"></span>Beyond Lock-In<span>카카오톡 스타일의 독립 데모</span></footer>
+  </aside>
 
   <main class="shell">
-    <section id="wallet" class="wallet-panel" aria-label="내 지갑">
+    <dialog id="wallet-dialog" class="wallet-dialog" aria-labelledby="wallet-title">
+      <div class="wallet-heading"><h2 id="wallet-title">포인트 지갑 <small>모의 서비스</small></h2><button id="wallet-close" class="plain-icon" type="button" aria-label="지갑 닫기"><svg aria-hidden="true"><use href="#i-close"/></svg></button></div>
+      <section id="wallet" class="wallet-panel" aria-label="내 지갑">
       <p id="wallet-notice" class="notice wallet-notice" role="status" hidden></p>
       <div id="onboard" class="card onboard">
         <p class="eyebrow">BRAVO POINT</p>
@@ -68,54 +96,48 @@
         <ol id="history" class="history-list"></ol>
       </section>
     </section>
+    </dialog>
 
-    <section class="chat-panel" aria-label="금융 상담 대화방">
+    <section class="chat-panel" aria-label="브라보 라운지 대화방">
       <header class="chat-header">
-        <div class="room">
-          <span class="room-icon" aria-hidden="true">₩</span>
-          <div>
-            <h2>상담 라운지 <span class="demo-tag">모의 상담</span></h2>
-            <p>공개 대화방 · 실제 계좌번호·비밀번호·개인정보는 입력하지 마세요</p>
-          </div>
+        <button id="room-back" class="plain-icon mobile-back" type="button" aria-label="대화 목록으로"><svg aria-hidden="true"><use href="#i-back"/></svg></button>
+        <span class="room-avatar" aria-hidden="true">B</span>
+        <div class="room-heading"><h2>브라보 라운지 <span id="room-member-count"></span></h2><p>메시지와 마음을 나누는 공개 대화방</p></div>
+        <div class="room-actions">
+          <span id="env-pill" class="env-pill" data-env="unknown" title="이 브라우저에 응답한 앱의 설정값"><span class="dot"></span><span id="env-pill-text">확인 중</span></span>
+          <span id="conn" class="connection" role="status">연결 중</span>
+          <button id="room-search-toggle" class="plain-icon" type="button" aria-label="대화 검색" aria-expanded="false" aria-controls="room-search-panel"><svg aria-hidden="true"><use href="#i-search"/></svg></button>
+          <button id="panel-toggle" class="plain-icon" type="button" aria-label="전환 관찰" aria-expanded="false" aria-controls="observe"><svg aria-hidden="true"><use href="#i-monitor"/></svg></button>
+          <button id="share-mobile" class="plain-icon" type="button" aria-label="참여 QR 열기"><svg aria-hidden="true"><use href="#i-qr"/></svg></button>
         </div>
       </header>
+      <div id="room-search-panel" class="room-search-panel" hidden><label for="room-search">표시된 대화 검색</label><input id="room-search" type="search" placeholder="찾고 싶은 메시지를 입력하세요" autocomplete="off"><span id="search-count" role="status"></span></div>
       <div id="banner" class="notice" role="status" hidden></div>
       <p id="load-note" class="load-note" hidden></p>
-      <div id="log" role="log" aria-label="상담 메시지" aria-live="polite" aria-relevant="additions">
-        <div id="empty" class="empty-state">
-          <span aria-hidden="true">💬</span>
-          <h3>무엇을 도와드릴까요?</h3>
-          <p>자주 묻는 질문을 누르거나 직접 입력해 보세요.<br>서비스가 다른 클라우드로 옮겨 가는 중에도 대화는 이어집니다.</p>
-        </div>
+      <div class="day-divider"><span id="chat-date"></span></div>
+      <div id="log" role="log" aria-label="대화 메시지" aria-live="polite" aria-relevant="additions">
+        <div id="empty" class="empty-state"><span class="empty-talk"><svg aria-hidden="true"><use href="#i-chat"/></svg></span><h3>우리의 첫 대화를 시작해요</h3><p>인사를 건네거나, 파일을 나누거나.<br>아래 송금하기로 모의 포인트도 보낼 수 있어요.</p><small>실제 개인정보나 비밀번호는 입력하지 마세요.</small></div>
       </div>
-      <button id="jump" class="jump" type="button" hidden>새 메시지 · 아래로</button>
+      <button id="jump" class="jump" type="button" hidden>새 메시지가 있어요 ↓</button>
       <section id="outbox" aria-label="전송 대기 메시지" aria-live="polite" hidden></section>
-      <div id="quick" class="quick" role="group" aria-label="자주 묻는 질문">
-        <button type="button" data-text="송금을 잘못 보냈어요. 취소할 수 있나요?">송금 취소</button>
-        <button type="button" data-text="이체 한도는 어디서 바꿀 수 있나요?">이체 한도</button>
-        <button type="button" data-text="점검 중에 보낸 송금은 어떻게 되나요?">점검 중 송금</button>
-        <button type="button" data-text="카드를 잃어버렸어요. 바로 정지할 수 있나요?">카드 분실</button>
-      </div>
+      <button id="pending-transfers" class="pending-transfers" type="button" hidden></button>
+      <div id="quick" hidden></div>
       <div id="file-preview" class="file-preview" hidden></div>
       <form id="form">
-        <div class="identity">
-          <label for="name">참여 별명</label>
-          <input id="name" type="text" placeholder="예: 방문자 07" maxlength="40" autocomplete="off" required>
-        </div>
-        <div class="composer">
-          <label for="body" class="sr-only">메시지</label>
-          <textarea id="body" placeholder="상담 내용을 입력하세요 · Enter 전송, Shift+Enter 줄바꿈" maxlength="2000" rows="2"></textarea>
+        <div class="identity"><label for="name">내 이름</label><input id="name" type="text" maxlength="40" placeholder="대화에 사용할 별명" autocomplete="off" required><span>공개 대화방 · 모의 서비스</span></div>
+        <div class="composer"><label for="body" class="sr-only">메시지</label><textarea id="body" placeholder="메시지를 입력하세요" maxlength="2000" rows="2"></textarea>
           <div class="composer-actions">
-            <label class="file-button" for="file"><span aria-hidden="true">＋</span> 첨부<input id="file" type="file" aria-label="첨부파일 선택" aria-describedby="upload-policy" disabled></label>
-            <span id="counter">0 / 2,000</span>
-            <button id="send" type="submit">보내기 <span aria-hidden="true">↑</span></button>
+            <button id="emoji-toggle" class="plain-icon" type="button" aria-label="이모지" aria-expanded="false" aria-controls="emoji-picker"><svg aria-hidden="true"><use href="#i-smile"/></svg></button>
+            <label class="file-button" for="file"><svg aria-hidden="true"><use href="#i-image"/></svg><span class="sr-only">첨부파일 선택</span><input id="file" type="file" aria-label="첨부파일 선택" aria-describedby="upload-policy" disabled></label>
+            <button id="composer-pay" class="pay-button" type="button"><span>₩</span>송금하기</button>
+            <span id="counter">0 / 2,000</span><button id="send" type="submit">전송</button>
           </div>
         </div>
-        <p id="upload-policy" class="feedback" role="status">첨부파일 사용 가능 여부를 확인하고 있습니다.</p>
-        <p id="feedback" class="feedback" role="status"></p>
+        <div id="emoji-picker" class="emoji-picker" role="group" aria-label="이모지 선택" hidden></div>
+        <p id="upload-policy" class="feedback" role="status">첨부파일 사용 가능 여부를 확인하고 있습니다.</p><p id="feedback" class="feedback" role="status"></p>
+        <p class="composer-hint">Enter로 전송 · Shift + Enter로 줄바꿈</p>
       </form>
     </section>
-
     <aside id="observe" class="observe" aria-label="서비스 연속성 관찰">
       <div class="observe-head">
         <div><p class="eyebrow">BEYOND LOCK-IN</p><h2>서비스 연속성 관찰</h2></div>
@@ -162,13 +184,6 @@
       </section>
     </aside>
   </main>
-
-  <nav id="tabbar" class="tabbar" aria-label="메뉴">
-    <button id="tab-home" type="button" data-tab="home" aria-pressed="true"><span class="ico ico-home" aria-hidden="true"></span>홈</button>
-    <button id="tab-send" type="button" data-tab="send" aria-pressed="false"><span class="ico ico-send" aria-hidden="true"></span>송금</button>
-    <button id="tab-history" type="button" data-tab="history" aria-pressed="false"><span class="ico ico-list" aria-hidden="true"></span>내역</button>
-    <button id="tab-chat" type="button" data-tab="chat" aria-pressed="false"><span class="ico ico-chat" aria-hidden="true"></span>상담</button>
-  </nav>
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
   <dialog id="send-sheet" class="sheet" aria-labelledby="sheet-title">
@@ -235,13 +250,13 @@
   </dialog>
 
   <dialog id="share-dialog" aria-labelledby="share-title">
-    <div class="dialog-heading"><h2 id="share-title">Bravo 뱅크에 참여</h2><button id="close-share" class="icon-button" type="button" aria-label="QR 닫기">✕</button></div>
+    <div class="dialog-heading"><h2 id="share-title">브라보톡에 참여</h2><button id="close-share" class="icon-button" type="button" aria-label="QR 닫기">✕</button></div>
     <p>휴대폰 카메라로 QR을 읽거나 주소를 복사하세요. 전환 중에도 같은 주소로 계속 이용할 수 있습니다.</p>
     <canvas id="qr" width="256" height="256" role="img" aria-label="현재 서비스 접속 QR"></canvas>
     <input id="share-url" type="text" readonly aria-label="공유 주소">
     <button id="copy-link" type="button">주소 복사</button>
     <p id="share-note" role="status"></p>
   </dialog>
-  <noscript>Bravo 뱅크 데모는 JavaScript를 켜야 사용할 수 있습니다.</noscript>
+  <noscript>브라보톡은 JavaScript를 켜야 사용할 수 있습니다.</noscript>
 </body>
 </html>

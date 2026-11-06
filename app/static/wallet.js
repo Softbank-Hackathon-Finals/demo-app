@@ -47,19 +47,21 @@ export function persist(cursorValue) {
 export function background() { return backgroundRows; }
 
 export function isChat(row) {
-  return !row.author.startsWith('loadgen-') && decode(row.body) === null;
+  const event = decode(row.body);
+  return !row.author.startsWith('loadgen-') && (event === null || (!event.invalid && event.t === 'transfer'));
 }
 
-// Splits stream rows: ledger rows update the wallet, load-test rows are only
-// counted, and everything else is returned for the chat log.
+// Ledger replay and chat rendering deduplicate independently: an acknowledged
+// transfer must still reach the chat if its stream row arrives afterwards.
 export function ingest(rows, env) {
   const chat = [];
   let changed = false;
   for (const row of rows) {
     if (row.author.startsWith('loadgen-')) { backgroundRows++; continue; }
     const result = ledger.ingest(row, env);
-    if (result === null) chat.push(row);
-    else changed = true;
+    const event = decode(row.body);
+    if (result === null || (event && !event.invalid && event.t === 'transfer')) chat.push(row);
+    if (result !== null) changed = true;
   }
   if (changed) render();
   return chat;
@@ -68,14 +70,19 @@ export function ingest(rows, env) {
 export function acknowledged(saved, ack) {
   ledger.ingest(saved, ack?.env ?? null);
   render();
+  if (decode(saved.body)?.t === 'transfer') hooks.savedTransfer?.(saved, ack);
 }
 
 export function balance() {
   return me ? ledger.accounts.get(me.code)?.balance ?? null : null;
 }
 
+export function participants() { return [...ledger.accounts.values()].map(account => account.name); }
+export function accountName(code) { return ledger.name(code); }
+
 function reserved() {
-  return hooks.pending().filter((e) => e.kind === 'ledger' && e.transfer).reduce((sum, e) => sum + e.transfer.amount, 0);
+  return hooks.pending().filter((e) => e.kind === 'ledger' && e.transfer && !ledger.transfers.has(e.transfer.n))
+    .reduce((sum, e) => sum + e.transfer.amount, 0);
 }
 
 // --- Rendering --------------------------------------------------------------
@@ -86,6 +93,7 @@ function render() {
   $('account').hidden = !me;
   $('open-send').disabled = $('copy-code-2').disabled = !account;
   $('history-card').hidden = !me;
+  hooks?.updated?.();
   if (!me) return;
   $('account-name').textContent = me.name;
   $('account-code').textContent = `BRV-${me.code}`;
@@ -175,11 +183,12 @@ function openAccount() {
   const name = $('open-name').value.trim().slice(0, 20);
   if (!name) { $('open-feedback').textContent = '이름(별명)을 입력해 주세요.'; $('open-name').focus(); return; }
   me = { code: newAccountCode(), name }; write(ACCOUNT_KEY, me); opening = true;
-  if (!$('name').value.trim()) $('name').value = name;
+  $('name').value = name;
+  $('name').dispatchEvent(new Event('input'));
   hooks.enqueue({
     kind: 'ledger', author: name, body: encodeOpen({ acct: me.code, name }), container: $('ledger-outbox'),
     summary: `계좌 개설 · 축하 포인트 ${points(GRANT)}`,
-    onSaved: (saved, ack) => { opening = false; acknowledged(saved, ack); toast(`계좌를 만들었어요 · ${points(GRANT)}가 들어왔어요`); },
+    onSaved: (saved, ack) => { opening = false; acknowledged(saved, ack); toast(`지갑을 만들었어요 · ${points(GRANT)}가 들어왔어요`); hooks.accountReady?.(); },
   });
   render();
 }
@@ -214,10 +223,13 @@ function showStep(step) {
   for (const name of ['to', 'amount', 'confirm', 'done']) $(`step-${name}`).hidden = name !== step;
   $('sheet-back').hidden = step === 'to' || step === 'done';
   $('send-sheet').dataset.step = step;
+  if (step === 'amount') document.querySelector('.keypad [data-key="1"]').focus();
+  if (step === 'confirm') $('transfer-send').focus();
 }
 
 export function openSheet() {
   if (!ledger.accounts.get(me?.code)) return;
+  hooks.beforeSend?.();
   clearInterval(mirror);
   flow = { step: 'to', to: null, digits: '' };
   $('to-search').value = ''; renderToList(); showStep('to');
@@ -336,7 +348,7 @@ function sendTransfer() {
       const where = ack?.env ? `${envLabel(ack.env)}에서 처리` : '처리 완료';
       const retried = entry.attempts > 1 ? ` · ${entry.attempts}번 시도했지만 출금은 한 번만 됐어요` : '';
       doneView('ok', `${name}님에게\n${points(amount)}를 보냈어요`, `거래 #${saved.id} · ${where}${retried}`,
-        `Bravo 뱅크 모의 송금 · ${name}님에게 ${points(amount)} · 거래 #${saved.id}`);
+        `브라보톡 모의 송금 · ${name}님에게 ${points(amount)} · 거래 #${saved.id}`);
     },
     onFailed: (code, permanent) => {
       if (flow !== current) return;
@@ -424,6 +436,7 @@ export function init(options) {
   };
   // One tap to start: a ready-made name the participant may keep or edit.
   $('open-name').value = $('name').value.trim() || `참여자 ${String(crypto.getRandomValues(new Uint16Array(1))[0] % 9000 + 1000)}`;
+  if (!$('name').value.trim()) $('name').value = $('open-name').value;
   render();
 }
 

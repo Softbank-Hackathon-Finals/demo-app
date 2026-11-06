@@ -2,6 +2,8 @@ import { qrcode } from './vendor/qrcode.mjs';
 import { MessageCursor, deliver, validateMessage, shareAddress } from './transport.js';
 import { Continuity, duration, envKey, envLabel } from './observe.js';
 import * as wallet from './wallet.js';
+import * as messenger from './messenger.js';
+import { decode, points } from './ledger.js';
 
 const $ = (id) => document.getElementById(id);
 const cursor = new MessageCursor();
@@ -89,19 +91,18 @@ $('panel-toggle').onclick = () => {
   const open = !document.body.classList.contains('panel-open');
   document.body.classList.toggle('panel-open', open); $('panel-toggle').setAttribute('aria-expanded', String(open));
 };
+let waitingForWallet = false;
 function showTab(tab) {
-  if (tab === 'send') {
-    // The send tab is an action: open the transfer flow, or account opening first.
-    showTab('home');
-    if (wallet.balance() === null) { $('open-name')?.focus(); wallet.toast('먼저 계좌를 만들어 주세요'); }
-    else wallet.openSheet();
-    return;
-  }
-  document.body.dataset.tab = tab;
-  for (const button of document.querySelectorAll('.tabbar button')) button.setAttribute('aria-pressed', String(button.dataset.tab === tab));
-  window.scrollTo({ top: 0 });
+  if (tab === 'send' && wallet.balance() !== null) { wallet.openSheet(); return; }
+  if (tab === 'chat') { $('wallet-dialog').close(); messenger.openRoom(); return; }
+  waitingForWallet = tab === 'send';
+  if (!$('wallet-dialog').open) $('wallet-dialog').showModal();
+  if (wallet.balance() === null) {
+    $('open-name').focus();
+    if (waitingForWallet) wallet.toast('모의 포인트 지갑을 먼저 만들어 주세요');
+  } else if (tab === 'history') $('history-card').scrollIntoView({ block: 'nearest' });
 }
-for (const button of document.querySelectorAll('.tabbar button')) button.onclick = () => showTab(button.dataset.tab);
+$('wallet-dialog').addEventListener('close', () => { waitingForWallet = false; });
 $('panel-close').onclick = () => { document.body.classList.remove('panel-open'); $('panel-toggle').setAttribute('aria-expanded', 'false'); };
 
 // --- Connection and status --------------------------------------------------
@@ -171,7 +172,18 @@ function messageElement(m, via) {
   env.title = via.saved ? '이 메시지를 새로 저장했다고 응답한 앱의 환경' : '이 브라우저에 메시지를 전달한 앱의 환경';
   const id = document.createElement('span'); id.className = 'mid'; id.textContent = `#${m.id}`;
   meta.append(author, time, env, id);
-  const bubble = document.createElement('div'); bubble.className = 'bubble'; bubble.textContent = m.body;
+  const bubble = document.createElement('div'); bubble.className = 'bubble';
+  const transfer = decode(m.body);
+  if (transfer && !transfer.invalid && transfer.t === 'transfer') {
+    el.classList.add('transfer');
+    const head = document.createElement('div'); head.className = 'transfer-head'; head.textContent = '₩  브라보 포인트 송금';
+    const details = document.createElement('div'); details.className = 'transfer-details';
+    const amount = document.createElement('strong'); amount.textContent = points(transfer.amount);
+    const to = document.createElement('p'); to.textContent = `${wallet.accountName(transfer.from)} → ${wallet.accountName(transfer.to)}`;
+    const note = document.createElement('small'); note.textContent = transfer.memo || '모의 포인트 · 송금 기록 저장됨';
+    const link = document.createElement('button'); link.type = 'button'; link.textContent = '내 포인트 지갑'; link.onclick = () => showTab('home');
+    details.append(amount, to, note, link); bubble.append(head, details);
+  } else bubble.textContent = m.body;
   if (m.attachment_id) {
     const url = `/api/attachments/${encodeURIComponent(m.attachment_id)}`;
     const filename = typeof m.attachment_name === 'string' ? m.attachment_name.slice(0, 200) : '첨부파일';
@@ -197,6 +209,8 @@ function append(items, via) {
     if (rendered.has(m.id) || m.id <= renderedFloor) continue;
     $('empty').hidden = true;
     const el = messageElement(m, via);
+    const event = decode(m.body);
+    messenger.received(m, event?.t === 'transfer' ? `${m.author}: ${points(event.amount)} 송금` : `${m.author}: ${m.body || '첨부파일'}`);
     const next = [...rendered.keys()].filter((id) => id > m.id).sort((a,b) => a-b)[0];
     log.insertBefore(el, next ? rendered.get(next) : null); rendered.set(m.id, el); added++;
     if (rendered.size > 500) {
@@ -204,6 +218,7 @@ function append(items, via) {
     }
   }
   if (added) renderSplit();
+  messenger.updateMembers(wallet.participants()); messenger.filterMessages();
   if (stick) log.scrollTop = log.scrollHeight;
   else if (added) $('jump').hidden = false;
 }
@@ -282,6 +297,8 @@ for (const chip of $('quick').querySelectorAll('button')) {
 function updateOutbox() {
   const chat = [...pending].filter((e) => e.kind === 'chat').length;
   $('outbox').hidden = chat === 0; $('ledger-outbox').hidden = pending.size === chat;
+  $('pending-transfers').hidden = pending.size === chat;
+  $('pending-transfers').textContent = `포인트 요청 ${pending.size - chat}건 · 처리 여부 확인 / 같은 요청 재시도`;
   $('send').disabled = $('transfer-send').disabled = pending.size >= 10;
   wallet.renderWallet();
 }
@@ -440,7 +457,17 @@ async function startup() {
   }
 }
 
-wallet.init({ enqueue, uuid, pending: () => [...pending], showTab });
+messenger.init({ showTab });
+$('pending-transfers').onclick = () => showTab('home');
+wallet.init({ enqueue, uuid, pending: () => [...pending], showTab,
+  updated: () => messenger.updateMembers(wallet.participants()),
+  savedTransfer: (saved, ack) => append([saved], { env: ack?.env ?? null, saved: ack?.saved === true }),
+  beforeSend: () => $('wallet-dialog').close(),
+  accountReady: () => {
+    if (!waitingForWallet) return;
+    waitingForWallet = false; $('wallet-dialog').close(); wallet.openSheet();
+  },
+});
 renderSplit();
 await startup();
 connect();
