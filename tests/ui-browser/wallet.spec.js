@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { randomUUID } from 'node:crypto';
+import { expectObservedClose, observeSocketClosures } from './socket-observation.js';
 
 const admin = { Authorization: 'Bearer browser-test-only' };
 const ledgerRows = async (request) => (await (await request.get('/api/messages')).json())
@@ -164,6 +165,7 @@ test('a reload resumes the saved ledger instead of replaying, and overdraft is r
 
 test('the read-only stage view shows conservation, the live feed and the switch', async ({ page, browser, request }) => {
   const stage = await (await browser.newContext({ viewport: { width: 1440, height: 900 } })).newPage();
+  await observeSocketClosures(stage);
   const writes = []; stage.on('request', (r) => { if (r.method() !== 'GET') writes.push(r.url()); });
   await stage.goto('/stage.html');
   await expect(stage.locator('#conn')).toHaveText('연결됨');
@@ -180,7 +182,7 @@ test('the read-only stage view shows conservation, the live feed and the switch'
   await request.post('/__test__/switch/onprem');
   await expect(stage.locator('#env')).toHaveText('온프렘');
   await expect(stage.locator('#path')).toHaveText(/AWS\s*온프렘/);
-  await expect(stage.locator('#timeline')).toContainText('1012');
+  await expectObservedClose(stage, stage.locator('#timeline'));
   expect(writes).toEqual([]);
 });
 

@@ -44,9 +44,12 @@ export class Continuity {
   dropped(code, at) {
     if (this.#droppedAt !== null) return null;
     this.#droppedAt = at;
-    return this.#push('drop', code === 1012
+    const observedCode = Number.isInteger(code) && code >= 1000 && code <= 4999 ? code : null;
+    const event = this.#push('drop', observedCode === 1012
       ? '서버가 연결을 재배치했습니다(1012) · 자동 재접속'
-      : '연결이 끊겼습니다 · 자동 재접속', at);
+      : `연결이 끊겼습니다${observedCode === null ? '' : `(${observedCode})`} · 자동 재접속`, at);
+    event.closeCode = observedCode;
+    return event;
   }
 
   // A hello frame proves a working connection to some app instance.

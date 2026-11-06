@@ -1,10 +1,12 @@
 import { test, expect } from '@playwright/test';
 import { randomUUID } from 'node:crypto';
 import jsQR from 'jsqr';
+import { expectObservedClose, observeSocketClosures } from './socket-observation.js';
 
 const admin = { Authorization: 'Bearer browser-test-only' };
 const message = (body) => ({ author: '다른 참여자', body, idempotency_key: randomUUID() });
 test.beforeEach(async ({ page, request }) => {
+  await observeSocketClosures(page);
   await request.post('/__test__/reset');
   await page.goto('/');
   await expect(page.locator('#conn')).toHaveText('연결됨');
@@ -184,7 +186,7 @@ test('each message shows the environment the browser observed and the switch is 
   await request.post('/__test__/switch/onprem');
   await expect(page.locator('#env')).toHaveText('온프렘');
   await expect(page.locator('#env-pill')).toHaveAttribute('data-env', 'onprem');
-  await expect(page.locator('#timeline')).toContainText('1012');
+  await expectObservedClose(page, page.locator('#timeline'));
   await expect(page.locator('#timeline')).toContainText('처리 환경 전환 · AWS → 온프렘');
   await expect(page.locator('#log .system')).toContainText('AWS → 온프렘');
   await expect(page.locator('#stat-reconnects')).toHaveText('1회');

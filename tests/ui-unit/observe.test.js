@@ -36,6 +36,18 @@ test('write pause time accumulates, including an ongoing pause', () => {
   assert.deepEqual(c.status('aws', false, 9100), []);
 });
 
+test('a browser-observed failure is recorded without inventing a planned close code', () => {
+  const c = new Continuity();
+  c.connected('aws', false, 0);
+  const event = c.dropped(1006, 100);
+  assert.equal(event.closeCode, 1006);
+  assert.match(event.text, /\(1006\)/);
+  assert.doesNotMatch(event.text, /1012/);
+  const unknown = new Continuity().dropped('<untrusted>', 0);
+  assert.equal(unknown.closeCode, null);
+  assert.doesNotMatch(unknown.text, /untrusted/);
+});
+
 test('only retried deliveries are reported, and the journal is bounded', () => {
   const c = new Continuity(3);
   assert.equal(c.delivered(1, 1, 0), null);
