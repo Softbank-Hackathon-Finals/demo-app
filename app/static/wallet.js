@@ -422,7 +422,8 @@ export function init(options) {
     try { await navigator.clipboard.writeText(`BRV-${me.code}`); toast('내 계좌번호를 복사했어요'); }
     catch { toast(`내 계좌번호 BRV-${me?.code}`); }
   };
-  try { $('open-name').value = $('name').value || ''; } catch { /* ignore */ }
+  // One tap to start: a ready-made name the participant may keep or edit.
+  $('open-name').value = $('name').value.trim() || `참여자 ${String(crypto.getRandomValues(new Uint16Array(1))[0] % 9000 + 1000)}`;
   render();
 }
 

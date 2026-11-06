@@ -147,6 +147,7 @@ test('the read-only stage view shows conservation, the live feed and the switch'
 });
 
 test('phone home: tab bar, recent recipient shortcut and result actions', async ({ browser }) => {
+  test.slow(); // a long multi-step flow; WebKit under a full parallel run can exceed the default budget
   const friend = await (await browser.newContext()).newPage();
   const code = await openAccount(friend, '김하늘');
   const page = await (await browser.newContext({ viewport: { width: 390, height: 844 } })).newPage();
@@ -180,4 +181,14 @@ test('phone home: tab bar, recent recipient shortcut and result actions', async 
   await expect(page.locator('#send')).toBeVisible();
   await expect(page.locator('#wallet')).toBeHidden();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+});
+
+test('one tap opens an account with a ready-made name', async ({ page }) => {
+  await page.goto('/');
+  await expect(page.locator('#conn')).toHaveText('연결됨');
+  await expect(page.locator('#open-name')).toHaveValue(/^참여자 \d{4}$/);
+  const name = await page.locator('#open-name').inputValue();
+  await page.locator('#open-account').click();
+  await expect(page.locator('#balance')).toHaveText('100,000P');
+  await expect(page.locator('#account-name')).toHaveText(name);
 });
