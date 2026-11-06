@@ -6,6 +6,12 @@ Run this workflow **from protected main** after agreeing on the candidate with i
 owner. Dispatch permission remains the repository's Actions write permission;
 neither the AI candidate nor T15/T31 receives registry publisher credentials.
 
+Each run is named `candidate <request_id>`. The Bravo workflow host dispatches through
+its GitHub App (contents/PR write on this repository only, actions write) and finds its
+one run by that name, because the runs API does not return dispatch inputs. Changing
+this workflow changes the reviewed `workflow_sha` the platform pins; update the pin in
+the same release.
+
 Supply the PR number, full base and source commit IDs, request ID and the SHA-256
 of these exact bytes (no shell substitution containing credentials):
 
