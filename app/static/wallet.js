@@ -90,16 +90,61 @@ function render() {
   $('account-name').textContent = me.name;
   $('account-code').textContent = `BRV-${me.code}`;
   if (!account) {
-    $('balance').textContent = opening ? '개설 중' : '확인 중';
-    $('balance-note').textContent = opening ? '개설 요청을 같은 요청으로 보내고 있습니다.' : '장부에서 계좌를 찾는 중입니다.';
+    $('balance').textContent = opening ? '만드는 중' : '확인 중'; delete $('balance').dataset.value;
+    $('recent-card').hidden = true;
+    $('balance-note').textContent = opening ? '계좌를 만들고 있어요.' : '장부에서 계좌를 찾고 있어요.';
     return;
   }
   const hold = reserved();
-  $('balance').textContent = points(account.balance - hold);
+  setBalance(account.balance - hold);
   $('balance-note').textContent = hold ? `처리 대기 송금 ${points(hold)} 제외 · 장부 잔액 ${points(account.balance)}` : '사용 가능 포인트';
+  renderRecent();
   if (flow?.step === 'to') renderToList();
   if (flow?.step === 'amount') renderAmount();
   renderHistory();
+}
+
+// Count toward the new balance instead of jumping; the final text is exact.
+let balanceFrame;
+const still = matchMedia('(prefers-reduced-motion: reduce)');
+function setBalance(value) {
+  const el = $('balance'), from = Number(el.dataset.value);
+  el.dataset.value = String(value);
+  cancelAnimationFrame(balanceFrame);
+  if (!Number.isFinite(from) || from === value || still.matches) { el.textContent = points(value); return; }
+  const start = performance.now(), span = 450;
+  const step = (now) => {
+    const t = Math.min(1, (now - start) / span), eased = 1 - (1 - t) ** 3;
+    el.textContent = points(Math.round(from + (value - from) * eased));
+    if (t < 1) balanceFrame = requestAnimationFrame(step);
+  };
+  balanceFrame = requestAnimationFrame(step);
+}
+
+function recentCodes() {
+  const seen = [];
+  for (const t of ledger.history(me.code)) if (t.from === me.code && !seen.includes(t.to)) seen.push(t.to);
+  return seen.slice(0, 8);
+}
+
+function renderRecent() {
+  const codes = recentCodes();
+  $('recent-card').hidden = codes.length === 0;
+  $('recent').replaceChildren(...codes.map((code) => {
+    const li = document.createElement('li');
+    const button = document.createElement('button'); button.type = 'button'; button.dataset.code = code;
+    const name = document.createElement('span'); name.textContent = ledger.name(code);
+    button.append(avatar(ledger.name(code)), name);
+    button.onclick = () => { openSheet(); chooseRecipient(code); };
+    li.append(button); return li;
+  }));
+}
+
+let toastTimer;
+export function toast(message) {
+  const el = $('toast'); el.textContent = message; el.hidden = false;
+  el.classList.remove('show'); void el.offsetWidth; el.classList.add('show');
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => { el.classList.remove('show'); el.hidden = true; }, 2600);
 }
 
 function renderHistory() {
@@ -119,7 +164,7 @@ function renderHistory() {
     li.append(who, side); return li;
   });
   if (!items.length) {
-    const li = document.createElement('li'); li.className = 'placeholder'; li.textContent = '아직 거래가 없습니다. 첫 송금을 보내 보세요.'; items.push(li);
+    const li = document.createElement('li'); li.className = 'placeholder'; li.textContent = '아직 거래가 없어요. 첫 송금을 보내 보세요.'; items.push(li);
   }
   $('history').replaceChildren(...items);
 }
@@ -134,7 +179,7 @@ function openAccount() {
   hooks.enqueue({
     kind: 'ledger', author: name, body: encodeOpen({ acct: me.code, name }), container: $('ledger-outbox'),
     summary: `계좌 개설 · 축하 포인트 ${points(GRANT)}`,
-    onSaved: (saved, ack) => { opening = false; acknowledged(saved, ack); $('transfer-feedback').textContent = `계좌를 개설했습니다. ${points(GRANT)}가 들어왔습니다.`; },
+    onSaved: (saved, ack) => { opening = false; acknowledged(saved, ack); toast(`계좌를 만들었어요 · ${points(GRANT)}가 들어왔어요`); },
   });
   render();
 }
@@ -162,14 +207,16 @@ function available() {
   return account ? account.balance - reserved() : 0;
 }
 
+const ORDER = ['to', 'amount', 'confirm', 'done'];
 function showStep(step) {
+  $('send-sheet').dataset.dir = ORDER.indexOf(step) >= ORDER.indexOf(flow.step) ? 'forward' : 'back';
   flow.step = step;
   for (const name of ['to', 'amount', 'confirm', 'done']) $(`step-${name}`).hidden = name !== step;
   $('sheet-back').hidden = step === 'to' || step === 'done';
   $('send-sheet').dataset.step = step;
 }
 
-function openSheet() {
+export function openSheet() {
   if (!ledger.accounts.get(me?.code)) return;
   clearInterval(mirror);
   flow = { step: 'to', to: null, digits: '' };
@@ -204,6 +251,9 @@ function renderToList() {
     items.push(li);
   }
   $('to-list').replaceChildren(...items);
+  const recent = raw ? [] : recentCodes().map((code) => recipientButton(code, ledger.name(code), `Bravo 포인트 BRV-${code}`, ledger.name(code)));
+  $('to-recent-wrap').hidden = recent.length === 0;
+  $('to-recent').replaceChildren(...recent);
 }
 
 function chooseRecipient(code) {
@@ -216,7 +266,9 @@ function renderAmount() {
   const amount = Number(flow.digits || 0), limit = available();
   const display = $('amount-display'), hint = $('amount-hint');
   display.dataset.empty = String(!flow.digits);
-  display.textContent = flow.digits ? points(amount) : '얼마를 보낼까요?';
+  const text = flow.digits ? points(amount) : '얼마를 보낼까요?';
+  if (display.textContent !== text && flow.digits) { display.classList.remove('bump'); void display.offsetWidth; display.classList.add('bump'); }
+  display.textContent = text;
   hint.dataset.state = '';
   if (amount > MAX_AMOUNT) { hint.textContent = `한 번에 ${points(MAX_AMOUNT)}까지 보낼 수 있어요`; hint.dataset.state = 'error'; }
   else if (amount > limit) { hint.textContent = `잔액이 부족해요 · 보낼 수 있는 금액 ${points(limit)}`; hint.dataset.state = 'error'; }
@@ -246,8 +298,19 @@ function confirmStep() {
   $('memo').value = ''; showStep('confirm');
 }
 
-function doneView(state, title, status) {
+function doneView(state, title, status, receipt = null) {
   $('done-mark').dataset.state = state; $('done-title').textContent = title; $('done-status').textContent = status;
+  flow.receipt = receipt;
+  $('done-share').disabled = !receipt;
+}
+
+async function shareReceipt() {
+  if (!flow?.receipt) return;
+  const text = flow.receipt;
+  try {
+    if (navigator.share) { await navigator.share({ text }); return; }
+    await navigator.clipboard.writeText(text); toast('송금 내용을 복사했어요');
+  } catch { toast('공유를 마치지 못했어요'); }
 }
 
 function sendTransfer() {
@@ -267,12 +330,13 @@ function sendTransfer() {
     summary: `송금 ${points(amount)} → ${name}${memo ? ` · ${memo}` : ''}`,
     onSaved: (saved, ack, entry) => {
       acknowledged(saved, ack);
-      $('transfer-feedback').textContent = `${name}님에게 ${points(amount)}를 보냈어요 · 거래 #${saved.id}`;
+      if (flow !== current) toast(`${name}님에게 ${points(amount)}를 보냈어요`);
       if (flow !== current) return;
       clearInterval(mirror);
       const where = ack?.env ? `${envLabel(ack.env)}에서 처리` : '처리 완료';
       const retried = entry.attempts > 1 ? ` · ${entry.attempts}번 시도했지만 출금은 한 번만 됐어요` : '';
-      doneView('ok', `${name}님에게\n${points(amount)}를 보냈어요`, `거래 #${saved.id} · ${where}${retried}`);
+      doneView('ok', `${name}님에게\n${points(amount)}를 보냈어요`, `거래 #${saved.id} · ${where}${retried}`,
+        `Bravo 뱅크 모의 송금 · ${name}님에게 ${points(amount)} · 거래 #${saved.id}`);
     },
     onFailed: (code, permanent) => {
       if (flow !== current) return;
@@ -302,7 +366,7 @@ export async function verify(reason = '') {
   const rows = [{ id: account.openedId, check: (e) => e.t === 'open' && e.acct === me.code }]
     .concat(ledger.history(me.code).slice(0, 20).map((t) => ({ id: t.id, check: (e) => e.t === 'transfer' && e.n === t.n && e.amount === t.amount })));
   const result = $('verify-result');
-  result.dataset.state = 'running'; result.textContent = `${reason}현재 연결된 DB에서 내 기록 ${rows.length}건을 다시 읽는 중…`;
+  result.dataset.state = 'running'; result.textContent = `${reason}지금 연결된 DB에서 내 기록 ${rows.length}건을 다시 읽고 있어요…`;
   let ok = 0, env = null;
   try {
     for (const { id, check } of rows) {
@@ -314,13 +378,13 @@ export async function verify(reason = '') {
       if (event && !event.invalid && check(event)) ok++;
     }
   } catch {
-    result.dataset.state = 'error'; result.textContent = '지금은 DB를 다시 읽을 수 없습니다. 연결이 돌아오면 다시 확인해 주세요.'; return;
+    result.dataset.state = 'error'; result.textContent = '지금은 DB를 다시 읽을 수 없어요. 연결이 돌아오면 다시 확인해 주세요.'; return;
   }
   const where = env ? `${envLabel(env)} 환경` : '현재 환경';
   result.dataset.state = ok === rows.length ? 'ok' : 'error';
   result.textContent = ok === rows.length
-    ? `${reason}${where}의 DB에서 계좌 개설과 거래 ${rows.length - 1}건을 모두 그대로 확인했습니다 · ${clockFormat.format(Date.now())}`
-    : `${where}의 DB에서 ${rows.length}건 중 ${ok}건만 확인됐습니다. 운영자에게 알려 주세요.`;
+    ? `${reason}${where}의 DB에서 계좌 개설과 거래 ${rows.length - 1}건을 모두 그대로 확인했어요 · ${clockFormat.format(Date.now())}`
+    : `${where}의 DB에서 ${rows.length}건 중 ${ok}건만 확인됐어요. 운영자에게 알려 주세요.`;
 }
 
 export function environmentChanged(from, to) {
@@ -339,6 +403,8 @@ export function init(options) {
   $('amount-next').onclick = confirmStep;
   $('transfer-send').onclick = sendTransfer;
   $('done-close').onclick = () => $('send-sheet').close();
+  $('done-share').onclick = shareReceipt;
+  $('done-history').onclick = () => { $('send-sheet').close(); hooks.showTab('history'); };
   $('sheet-close').onclick = () => $('send-sheet').close();
   $('sheet-back').onclick = () => {
     if (flow.step === 'amount') showStep('to');
@@ -353,8 +419,8 @@ export function init(options) {
   };
   $('verify').onclick = () => verify();
   $('copy-code').onclick = $('copy-code-2').onclick = async () => {
-    try { await navigator.clipboard.writeText(`BRV-${me.code}`); $('transfer-feedback').textContent = '내 계좌번호를 복사했습니다.'; }
-    catch { $('transfer-feedback').textContent = `내 계좌번호: BRV-${me?.code}`; }
+    try { await navigator.clipboard.writeText(`BRV-${me.code}`); toast('내 계좌번호를 복사했어요'); }
+    catch { toast(`내 계좌번호 BRV-${me?.code}`); }
   };
   try { $('open-name').value = $('name').value || ''; } catch { /* ignore */ }
   render();

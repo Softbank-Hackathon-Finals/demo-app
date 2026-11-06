@@ -90,10 +90,18 @@ $('panel-toggle').onclick = () => {
   document.body.classList.toggle('panel-open', open); $('panel-toggle').setAttribute('aria-expanded', String(open));
 };
 function showTab(tab) {
+  if (tab === 'send') {
+    // The send tab is an action: open the transfer flow, or account opening first.
+    showTab('home');
+    if (wallet.balance() === null) { $('open-name')?.focus(); wallet.toast('먼저 계좌를 만들어 주세요'); }
+    else wallet.openSheet();
+    return;
+  }
   document.body.dataset.tab = tab;
-  for (const button of document.querySelectorAll('.tabs button')) button.setAttribute('aria-pressed', String(button.dataset.tab === tab));
+  for (const button of document.querySelectorAll('.tabbar button')) button.setAttribute('aria-pressed', String(button.dataset.tab === tab));
+  window.scrollTo({ top: 0 });
 }
-for (const button of document.querySelectorAll('.tabs button')) button.onclick = () => showTab(button.dataset.tab);
+for (const button of document.querySelectorAll('.tabbar button')) button.onclick = () => showTab(button.dataset.tab);
 $('panel-close').onclick = () => { document.body.classList.remove('panel-open'); $('panel-toggle').setAttribute('aria-expanded', 'false'); };
 
 // --- Connection and status --------------------------------------------------
@@ -125,6 +133,7 @@ function status(data, hello = false) {
   record(hello ? continuity.connected(data.env, blocked, Date.now()) : continuity.status(data.env, blocked, Date.now()));
   if (previous !== null && previous !== data.env) {
     wallet.environmentChanged(previous, data.env);
+    wallet.toast(`처리 환경이 ${label}${label === '온프렘' ? '으로' : '로'} 바뀌었어요`);
     clearTimeout(switchFlash); $('env-card').classList.remove('switched'); void $('env-card').offsetWidth;
     $('env-card').classList.add('switched'); switchFlash = setTimeout(() => $('env-card').classList.remove('switched'), 3500);
   }
@@ -431,7 +440,7 @@ async function startup() {
   }
 }
 
-wallet.init({ enqueue, uuid, pending: () => [...pending] });
+wallet.init({ enqueue, uuid, pending: () => [...pending], showTab });
 renderSplit();
 await startup();
 connect();

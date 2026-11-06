@@ -9,7 +9,7 @@
   <link rel="stylesheet" href="/chat.css">
   <script type="module" src="/chat.js"></script>
 </head>
-<body data-tab="wallet">
+<body data-tab="home">
   <header class="topbar">
     <div class="brand">
       <span class="mark" aria-hidden="true">B</span>
@@ -26,23 +26,18 @@
     </div>
   </header>
 
-  <nav class="tabs" aria-label="화면 전환">
-    <button id="tab-wallet" type="button" data-tab="wallet" aria-pressed="true">내 지갑 · 송금</button>
-    <button id="tab-chat" type="button" data-tab="chat" aria-pressed="false">상담</button>
-  </nav>
-
   <main class="shell">
     <section id="wallet" class="wallet-panel" aria-label="내 지갑">
       <p id="wallet-notice" class="notice wallet-notice" role="status" hidden></p>
       <div id="onboard" class="card onboard">
         <p class="eyebrow">BRAVO POINT</p>
-        <h1>계좌를 열고 <span>100,000P</span>로 시작하세요</h1>
-        <p class="hint">발표 중 다른 참여자와 포인트를 주고받아 보세요. 서비스가 다른 클라우드로 옮겨지는 동안에도 잔액과 거래는 그대로 남습니다.</p>
+        <h1>계좌를 열면<br><span>100,000P</span>를 드려요</h1>
+        <p class="hint">발표 중에 옆 사람과 포인트를 주고받아 보세요. 서비스가 다른 클라우드로 옮겨 가는 동안에도 잔액과 거래는 그대로 남아요.</p>
         <label for="open-name">이름(별명)</label>
         <input id="open-name" type="text" maxlength="20" placeholder="예: 방문자 07" autocomplete="off">
-        <button id="open-account" type="button">계좌 개설하고 100,000P 받기</button>
+        <button id="open-account" type="button">계좌 만들고 100,000P 받기</button>
         <p id="open-feedback" class="feedback" role="status"></p>
-        <p class="fine">모의 포인트입니다. 실제 돈·계좌번호·개인정보는 쓰지 않습니다.</p>
+        <p class="fine">모의 포인트예요. 실제 돈·계좌번호·개인정보는 쓰지 않아요.</p>
       </div>
 
       <div id="account" class="card account" hidden>
@@ -57,15 +52,19 @@
           <button id="open-send" type="button">송금</button>
           <button id="copy-code-2" class="ghost-light" type="button">내 계좌번호 복사</button>
         </div>
-        <p id="transfer-feedback" class="account-feedback" role="status"></p>
       </div>
 
+
+      <section id="recent-card" class="card recent" aria-label="최근 보낸 사람" hidden>
+        <h2>최근 보낸 사람</h2>
+        <ul id="recent" class="recent-list"></ul>
+      </section>
 
       <section id="ledger-outbox" class="card outbox" aria-label="처리 대기 거래" aria-live="polite" hidden></section>
 
       <section id="history-card" class="card history" aria-label="거래 내역" hidden>
         <div class="history-head"><h2>거래 내역</h2><button id="verify" class="secondary" type="button">DB에서 다시 확인</button></div>
-        <p id="verify-result" class="verify" role="status">전환이 끝나면 지금 연결된 환경의 DB에서 내 기록을 자동으로 다시 읽습니다.</p>
+        <p id="verify-result" class="verify" role="status">전환이 끝나면 지금 연결된 환경의 DB에서 내 기록을 자동으로 다시 읽어요.</p>
         <ol id="history" class="history-list"></ol>
       </section>
     </section>
@@ -164,6 +163,14 @@
     </aside>
   </main>
 
+  <nav id="tabbar" class="tabbar" aria-label="메뉴">
+    <button id="tab-home" type="button" data-tab="home" aria-pressed="true"><span class="ico ico-home" aria-hidden="true"></span>홈</button>
+    <button id="tab-send" type="button" data-tab="send" aria-pressed="false"><span class="ico ico-send" aria-hidden="true"></span>송금</button>
+    <button id="tab-history" type="button" data-tab="history" aria-pressed="false"><span class="ico ico-list" aria-hidden="true"></span>내역</button>
+    <button id="tab-chat" type="button" data-tab="chat" aria-pressed="false"><span class="ico ico-chat" aria-hidden="true"></span>상담</button>
+  </nav>
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+
   <dialog id="send-sheet" class="sheet" aria-labelledby="sheet-title">
     <div class="sheet-bar">
       <button id="sheet-back" class="sheet-icon" type="button" aria-label="이전 단계">‹</button>
@@ -175,8 +182,14 @@
       <h2>누구에게 보낼까요?</h2>
       <label for="to-search" class="sr-only">이름 또는 계좌번호</label>
       <input id="to-search" type="search" placeholder="이름 또는 계좌번호(BRV-…) 검색" autocomplete="off" autocapitalize="characters">
-      <p class="step-sub">이 방에서 계좌를 연 사람</p>
-      <ul id="to-list" class="to-list"></ul>
+      <div class="to-scroll">
+        <div id="to-recent-wrap" hidden>
+          <p class="step-sub">최근 보낸 사람</p>
+          <ul id="to-recent" class="to-list"></ul>
+        </div>
+        <p class="step-sub">이 방 참여자</p>
+        <ul id="to-list" class="to-list"></ul>
+      </div>
     </section>
 
     <section id="step-amount" class="step" aria-label="금액 입력" hidden>
@@ -213,6 +226,10 @@
       <div id="done-mark" class="done-mark" data-state="pending" aria-hidden="true"><span></span></div>
       <h2 id="done-title"></h2>
       <p id="done-status" class="done-status" role="status"></p>
+      <div class="done-actions">
+        <button id="done-history" class="soft" type="button">내역 보기</button>
+        <button id="done-share" class="soft" type="button">공유하기</button>
+      </div>
       <button id="done-close" class="sheet-cta" type="button">확인</button>
     </section>
   </dialog>
