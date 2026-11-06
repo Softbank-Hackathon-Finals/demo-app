@@ -173,3 +173,22 @@ test('migration upload policy clears selection and blocks direct upload while ch
   await expect(page.locator('#file')).toBeEnabled();
   await expect(page.locator('#upload-policy')).toBeHidden();
 });
+
+test('each message shows the environment the browser observed and the switch is recorded', async ({ page, request }) => {
+  await page.locator('#body').fill('출발지에서 저장'); await page.locator('#send').click();
+  await expect(page.locator('#log .msg .served')).toHaveText(['AWS 저장']);
+  await request.post('/api/messages', { data: message('다른 참여자의 출발지 메시지') });
+  await expect(page.locator('#log .msg .served')).toHaveText(['AWS 저장', 'AWS 경유']);
+  await expect(page.locator('#env-pill')).toHaveAttribute('data-env', 'aws');
+  await request.post('/__test__/switch/onprem');
+  await expect(page.locator('#env')).toHaveText('온프렘');
+  await expect(page.locator('#env-pill')).toHaveAttribute('data-env', 'onprem');
+  await expect(page.locator('#timeline')).toContainText('1012');
+  await expect(page.locator('#timeline')).toContainText('처리 환경 전환 · AWS → 온프렘');
+  await expect(page.locator('#log .system')).toContainText('AWS → 온프렘');
+  await expect(page.locator('#stat-reconnects')).toHaveText('1회');
+  await page.locator('#body').fill('목적지에서 저장'); await page.locator('#send').click();
+  await expect(page.locator('#log .msg .served')).toHaveText(['AWS 저장', 'AWS 경유', '온프렘 저장']);
+  await expect(page.locator('#split-legend')).toHaveText(/AWS 2건\s*온프렘 1건/);
+  await expect(page.locator('#log .msg')).toHaveCount(3);
+});

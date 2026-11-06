@@ -4,50 +4,68 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="referrer" content="no-referrer">
-  <title>Bravo 상담 데모</title>
+  <meta name="theme-color" content="#0f2a3a">
+  <title>Bravo 뱅크 · 실시간 상담</title>
   <link rel="stylesheet" href="/chat.css">
   <script type="module" src="/chat.js"></script>
 </head>
 <body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="mark" aria-hidden="true">B</span>
+      <div><strong>Bravo 뱅크</strong><small>실시간 금융 상담 · 모의 서비스</small></div>
+    </div>
+    <div class="top-status" aria-label="현재 접속 상태">
+      <span id="env-pill" class="env-pill" data-env="unknown" title="이 화면을 지금 처리하는 앱의 환경"><span class="dot" aria-hidden="true"></span><span id="env-pill-text">확인 중</span></span>
+      <span id="conn" class="connection" role="status">연결 중</span>
+    </div>
+    <div class="top-actions">
+      <button id="panel-toggle" class="ghost" type="button" aria-controls="observe" aria-expanded="false">전환 관찰</button>
+      <button id="share" class="secondary" type="button">휴대폰으로 참여</button>
+      <button id="share-mobile" class="icon-button" type="button" aria-label="참여 QR 열기">QR</button>
+    </div>
+  </header>
+
   <main class="shell">
-    <aside class="overview" aria-label="데모 안내">
-      <div class="brand"><span class="mark" aria-hidden="true">B</span> BRAVO LAB</div>
-      <p class="eyebrow">서비스 이전 체험</p>
-      <h1>환경이 바뀌어도,<br>대화는 이어지도록.</h1>
-      <p class="intro">메시지를 보내고, 연결된 앱의 환경과 전송 상태를 함께 확인하세요.</p>
-      <div class="environment-card">
-        <span class="small-label">현재 연결된 앱</span>
-        <strong id="env">연결 확인 중</strong>
-        <span id="conn" class="connection" role="status">연결 중</span>
-        <p id="environment-note">서버가 알려 준 실행 환경을 표시합니다.</p>
-      </div>
-      <div class="journey" aria-label="참여 방법">
-        <div><span>01</span><p>별명을 입력하고 대화에 참여</p></div>
-        <div><span>02</span><p>전환 중에는 같은 요청으로 재전송</p></div>
-        <div><span>03</span><p>연결 복구 후 메시지 도착 확인</p></div>
-      </div>
-      <button id="share" class="secondary" type="button">휴대폰으로 참여 · QR</button>
-      <p class="privacy">공개된 데모 대화방입니다. 실제 고객 정보·계좌번호·비밀번호를 입력하지 마세요.</p>
-    </aside>
-    <section class="chat-panel" aria-label="금융 상담 데모 대화방">
+    <section class="chat-panel" aria-label="금융 상담 대화방">
       <header class="chat-header">
-        <div><p class="eyebrow">FINANCE DEMO</p><h2>상담 라운지 <span class="demo-tag">모의 상담</span></h2></div>
-        <button id="share-mobile" class="icon-button" type="button" aria-label="참여 QR 열기">QR</button>
+        <div class="room">
+          <span class="room-icon" aria-hidden="true">₩</span>
+          <div>
+            <h1>상담 라운지 <span class="demo-tag">모의 상담</span></h1>
+            <p>공개 대화방 · 실제 계좌번호·비밀번호·개인정보는 입력하지 마세요</p>
+          </div>
+        </div>
+        <div class="hours"><span class="live-dot" aria-hidden="true"></span>24시간 운영</div>
       </header>
       <div id="banner" class="notice" role="status" hidden></div>
       <div id="log" role="log" aria-label="상담 메시지" aria-live="polite" aria-relevant="additions">
-        <div id="empty" class="empty-state"><span aria-hidden="true">↗</span><h3>첫 대화를 시작해 보세요</h3><p>“이체 한도 변경은 어디서 하나요?”처럼<br>개인정보 없는 모의 질문을 보내 주세요.</p></div>
+        <div id="empty" class="empty-state">
+          <span aria-hidden="true">💬</span>
+          <h2>무엇을 도와드릴까요?</h2>
+          <p>아래 자주 묻는 질문을 누르거나 직접 입력해 보세요.<br>서비스가 다른 클라우드로 옮겨 가는 중에도 대화는 이어집니다.</p>
+        </div>
       </div>
       <button id="jump" class="jump" type="button" hidden>새 메시지 · 아래로</button>
       <section id="outbox" aria-label="전송 대기 메시지" aria-live="polite" hidden></section>
+      <div id="quick" class="quick" role="group" aria-label="자주 묻는 질문">
+        <button type="button" data-text="이체 한도는 어디서 바꿀 수 있나요?">이체 한도 변경</button>
+        <button type="button" data-text="카드를 잃어버렸어요. 바로 정지할 수 있나요?">카드 분실 신고</button>
+        <button type="button" data-text="해외 송금 수수료와 도착 시간이 궁금해요.">해외 송금</button>
+        <button type="button" data-text="정기예금과 적금 금리를 비교해 주세요.">예·적금 금리</button>
+        <button type="button" data-text="대출 상환 일정을 바꿀 수 있나요?">대출 상환</button>
+      </div>
       <div id="file-preview" class="file-preview" hidden></div>
       <form id="form">
-        <div class="identity"><label for="name">참여 별명</label><input id="name" type="text" placeholder="예: 방문자 07" maxlength="40" autocomplete="off" required></div>
+        <div class="identity">
+          <label for="name">참여 별명</label>
+          <input id="name" type="text" placeholder="예: 방문자 07" maxlength="40" autocomplete="off" required>
+        </div>
         <div class="composer">
           <label for="body" class="sr-only">메시지</label>
-          <textarea id="body" placeholder="모의 상담 메시지를 입력하세요" maxlength="2000" rows="2"></textarea>
+          <textarea id="body" placeholder="상담 내용을 입력하세요 · Enter 전송, Shift+Enter 줄바꿈" maxlength="2000" rows="2"></textarea>
           <div class="composer-actions">
-            <label class="file-button" for="file">+ 첨부<input id="file" type="file" aria-label="첨부파일 선택" aria-describedby="upload-policy" disabled></label>
+            <label class="file-button" for="file"><span aria-hidden="true">＋</span> 첨부<input id="file" type="file" aria-label="첨부파일 선택" aria-describedby="upload-policy" disabled></label>
             <span id="counter">0 / 2,000</span>
             <button id="send" type="submit">보내기 <span aria-hidden="true">↑</span></button>
           </div>
@@ -55,17 +73,63 @@
         <p id="upload-policy" class="feedback" role="status">첨부파일 사용 가능 여부를 확인하고 있습니다.</p>
         <p id="feedback" class="feedback" role="status"></p>
       </form>
-      <footer>공개 모의 대화방 · 개인정보 입력 금지. 전송 완료 전에는 이 창을 닫지 마세요.</footer>
     </section>
+
+    <aside id="observe" class="observe" aria-label="서비스 연속성 관찰">
+      <div class="observe-head">
+        <div><p class="eyebrow">BEYOND LOCK-IN</p><h2>서비스 연속성 관찰</h2></div>
+        <button id="panel-close" class="icon-button" type="button" aria-label="관찰 패널 닫기">✕</button>
+      </div>
+      <p class="observe-intro">이 상담 서비스는 운영 중에 AWS에서 온프렘으로 옮겨질 수 있습니다. 아래 값은 이 브라우저가 직접 겪은 것만 보여 줍니다.</p>
+
+      <section id="env-card" class="env-card" data-env="unknown" aria-label="현재 처리 환경">
+        <span class="small-label">지금 이 화면을 처리하는 앱</span>
+        <strong id="env">연결 확인 중</strong>
+        <p id="environment-note">서버가 알려 준 실행 환경을 표시합니다.</p>
+        <ol class="route" aria-label="이전 경로">
+          <li data-route="aws"><span>출발지</span>AWS</li>
+          <li class="arrow" aria-hidden="true">→</li>
+          <li data-route="onprem"><span>목적지</span>온프렘</li>
+        </ol>
+      </section>
+
+      <section class="stats" aria-label="연속성 지표">
+        <div><span>재접속</span><strong id="stat-reconnects">0회</strong></div>
+        <div><span>마지막 끊김 공백</span><strong id="stat-gap">-</strong></div>
+        <div><span>쓰기 정지 누적</span><strong id="stat-blocked">-</strong></div>
+        <div><span>재시도 후 1건 저장</span><strong id="stat-retried">0건</strong></div>
+      </section>
+
+      <section class="split" aria-label="메시지를 처리한 환경">
+        <h3>메시지를 처리한 환경 <small id="split-total">화면의 0건</small></h3>
+        <div id="split-bar" class="split-bar" role="img" aria-label="표시된 메시지 없음"></div>
+        <ul id="split-legend" class="split-legend"></ul>
+      </section>
+
+      <section class="timeline-box" aria-label="연결 기록">
+        <h3>연결 기록</h3>
+        <ol id="timeline" class="timeline"><li class="placeholder">아직 기록이 없습니다.</li></ol>
+      </section>
+
+      <section class="guarantees" aria-label="끊김 없이 이어지는 이유">
+        <h3>끊김 없이 이어지는 이유</h3>
+        <ul>
+          <li><strong>같은 요청 재전송</strong>메시지마다 브라우저가 만든 멱등 키로 재시도해 전환 중에도 유실·중복이 없습니다.</li>
+          <li><strong>마지막 메시지부터 재접속</strong>연결이 닫히면 마지막으로 받은 메시지 번호 이후만 다시 받습니다.</li>
+          <li><strong>공통 DB 기준 전파</strong>두 환경의 앱이 같은 쓰기 DB를 조회하므로 전환 중에도 서로의 메시지를 봅니다.</li>
+        </ul>
+      </section>
+    </aside>
   </main>
+
   <dialog id="share-dialog" aria-labelledby="share-title">
-    <div class="dialog-heading"><h2 id="share-title">같은 대화방에 참여</h2><button id="close-share" class="icon-button" type="button" aria-label="QR 닫기">✕</button></div>
-    <p>휴대폰 카메라로 QR을 읽거나 주소를 복사하세요.</p>
-    <canvas id="qr" width="256" height="256" role="img" aria-label="현재 대화방 접속 QR"></canvas>
+    <div class="dialog-heading"><h2 id="share-title">같은 상담방에 참여</h2><button id="close-share" class="icon-button" type="button" aria-label="QR 닫기">✕</button></div>
+    <p>휴대폰 카메라로 QR을 읽거나 주소를 복사하세요. 전환 중에도 같은 주소로 계속 대화할 수 있습니다.</p>
+    <canvas id="qr" width="256" height="256" role="img" aria-label="현재 상담방 접속 QR"></canvas>
     <input id="share-url" type="text" readonly aria-label="공유 주소">
     <button id="copy-link" type="button">주소 복사</button>
     <p id="share-note" role="status"></p>
   </dialog>
-  <noscript>이 데모 채팅은 JavaScript를 켜야 사용할 수 있습니다.</noscript>
+  <noscript>이 상담 데모는 JavaScript를 켜야 사용할 수 있습니다.</noscript>
 </body>
 </html>
