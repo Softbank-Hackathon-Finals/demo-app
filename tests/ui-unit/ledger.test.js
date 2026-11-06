@@ -82,3 +82,11 @@ test('account codes use an unambiguous alphabet', () => {
   assert.match(newAccountCode(), /^[A-HJ-NP-Z2-9]{6}$/);
   assert.equal(newAccountCode(() => new Uint8Array([0, 1, 2, 3, 4, 5])), 'ABCDEF');
 });
+
+test('rows written by testing/demo_traffic.py decode identically (shared literal)', () => {
+  const literal = '[Bravo 송금] 3,000P · 하늘 → 준서 · 커피\n' +
+    'BRAVO-LEDGER/1 {"t":"transfer","n":"00000000-0000-4000-8000-00000000000a",' +
+    '"from":"AAAAAA","to":"BBBBBB","amount":3000,"memo":"커피"}';
+  assert.deepEqual(decode(literal), { t: 'transfer', n: '00000000-0000-4000-8000-00000000000a', from: 'AAAAAA', to: 'BBBBBB', amount: 3000, memo: '커피' });
+  assert.equal(encodeTransfer({ n: '00000000-0000-4000-8000-00000000000a', from: 'AAAAAA', to: 'BBBBBB', amount: 3000, memo: '커피', fromName: '하늘', toName: '준서' }), literal);
+});
