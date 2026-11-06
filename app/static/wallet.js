@@ -84,7 +84,7 @@ function render() {
   const account = me && ledger.accounts.get(me.code);
   $('onboard').hidden = Boolean(me);
   $('account').hidden = !me;
-  $('transfer-form').hidden = !account;
+  $('open-send').disabled = $('copy-code-2').disabled = !account;
   $('history-card').hidden = !me;
   if (!me) return;
   $('account-name').textContent = me.name;
@@ -97,19 +97,9 @@ function render() {
   const hold = reserved();
   $('balance').textContent = points(account.balance - hold);
   $('balance-note').textContent = hold ? `처리 대기 송금 ${points(hold)} 제외 · 장부 잔액 ${points(account.balance)}` : '사용 가능 포인트';
-  renderRecipients();
+  if (flow?.step === 'to') renderToList();
+  if (flow?.step === 'amount') renderAmount();
   renderHistory();
-}
-
-function renderRecipients() {
-  const select = $('to'), current = select.value;
-  const options = [...ledger.accounts.values()].filter((a) => a.code !== me.code)
-    .sort((a, b) => b.openedId - a.openedId).slice(0, 50)
-    .map((a) => { const o = document.createElement('option'); o.value = a.code; o.textContent = `${a.name} · BRV-${a.code}`; return o; });
-  const manual = document.createElement('option'); manual.value = ''; manual.textContent = options.length ? '계좌번호 직접 입력' : '계좌번호 직접 입력 (아직 다른 참여자가 없습니다)';
-  select.replaceChildren(...options, manual);
-  if ([...select.options].some((o) => o.value === current)) select.value = current;
-  $('to-code-row').hidden = select.value !== '';
 }
 
 function renderHistory() {
@@ -149,30 +139,157 @@ function openAccount() {
   render();
 }
 
-function sendTransfer(event) {
-  event.preventDefault();
+// --- Transfer sheet: recipient → amount → confirm → result -------------------
+
+let flow = null; // { step, to, digits, n, entry }
+let mirror;
+const CODE = /^[A-HJ-NP-Z2-9]{6}$/;
+
+function hue(text) { let h = 0; for (const ch of text) h = (h * 31 + ch.codePointAt(0)) % 360; return h; }
+function avatar(name, className = 'avatar') {
+  const el = document.createElement('span'); el.className = className; el.setAttribute('aria-hidden', 'true');
+  el.textContent = [...name.trim()][0] || '?'; el.style.setProperty('--hue', String(hue(name))); return el;
+}
+
+export function koreanAmount(value) {
+  const man = Math.floor(value / 10000), rest = value % 10000;
+  const parts = [man ? `${man.toLocaleString('ko-KR')}만` : '', rest ? rest.toLocaleString('ko-KR') : ''].filter(Boolean);
+  return `${parts.join(' ') || '0'}P`;
+}
+
+function available() {
   const account = ledger.accounts.get(me?.code);
-  if (!account) return;
-  const to = ($('to').value || $('to-code').value.trim().toUpperCase().replace(/^BRV-/, ''));
-  const amount = Number($('amount').value.replaceAll(',', ''));
+  return account ? account.balance - reserved() : 0;
+}
+
+function showStep(step) {
+  flow.step = step;
+  for (const name of ['to', 'amount', 'confirm', 'done']) $(`step-${name}`).hidden = name !== step;
+  $('sheet-back').hidden = step === 'to' || step === 'done';
+  $('send-sheet').dataset.step = step;
+}
+
+function openSheet() {
+  if (!ledger.accounts.get(me?.code)) return;
+  clearInterval(mirror);
+  flow = { step: 'to', to: null, digits: '' };
+  $('to-search').value = ''; renderToList(); showStep('to');
+  $('send-sheet').showModal();
+  if (!matchMedia('(pointer: coarse)').matches) $('to-search').focus();
+}
+
+function recipientButton(code, title, subtitle, initial) {
+  const li = document.createElement('li');
+  const button = document.createElement('button'); button.type = 'button'; button.dataset.code = code;
+  const text = document.createElement('span'); text.className = 'to-text';
+  const name = document.createElement('strong'); name.textContent = title;
+  const sub = document.createElement('small'); sub.textContent = subtitle;
+  text.append(name, sub); button.append(avatar(initial), text);
+  button.onclick = () => chooseRecipient(code); li.append(button); return li;
+}
+
+function renderToList() {
+  const raw = $('to-search').value.trim();
+  const query = raw.toUpperCase().replace(/^BRV-?/, '');
+  const items = [...ledger.accounts.values()].filter((a) => a.code !== me.code)
+    .filter((a) => !raw || a.name.includes(raw) || a.code.includes(query))
+    .sort((a, b) => b.openedId - a.openedId).slice(0, 50)
+    .map((a) => recipientButton(a.code, a.name, `Bravo 포인트 BRV-${a.code}`, a.name));
+  if (CODE.test(query) && query !== me.code && !ledger.accounts.has(query)) {
+    items.push(recipientButton(query, `BRV-${query}`, '이 화면에서 아직 확인하지 못한 계좌로 보내기', '#'));
+  }
+  if (!items.length) {
+    const li = document.createElement('li'); li.className = 'placeholder';
+    li.textContent = raw ? '찾는 사람이 없어요. 계좌번호 6자리를 그대로 입력해 보세요.' : '아직 다른 참여자가 없어요. 옆 사람에게 QR을 보여 주세요.';
+    items.push(li);
+  }
+  $('to-list').replaceChildren(...items);
+}
+
+function chooseRecipient(code) {
+  flow.to = code; flow.digits = '';
+  $('amount-to').textContent = ledger.name(code);
+  showStep('amount'); renderAmount();
+}
+
+function renderAmount() {
+  const amount = Number(flow.digits || 0), limit = available();
+  const display = $('amount-display'), hint = $('amount-hint');
+  display.dataset.empty = String(!flow.digits);
+  display.textContent = flow.digits ? points(amount) : '얼마를 보낼까요?';
+  hint.dataset.state = '';
+  if (amount > MAX_AMOUNT) { hint.textContent = `한 번에 ${points(MAX_AMOUNT)}까지 보낼 수 있어요`; hint.dataset.state = 'error'; }
+  else if (amount > limit) { hint.textContent = `잔액이 부족해요 · 보낼 수 있는 금액 ${points(limit)}`; hint.dataset.state = 'error'; }
+  else hint.textContent = amount ? koreanAmount(amount) : `잔액 ${points(limit)}`;
+  $('amount-next').disabled = !(amount >= 1 && amount <= limit && amount <= MAX_AMOUNT);
+}
+
+function press(key) {
+  if (key === 'back') flow.digits = flow.digits.slice(0, -1);
+  else if (!(flow.digits === '' && key.startsWith('0')) && flow.digits.length + key.length <= 7) flow.digits += key;
+  renderAmount();
+}
+
+function add(value) {
+  const next = value === 'all' ? available() : Number(flow.digits || 0) + Number(value);
+  flow.digits = next > 0 ? String(Math.min(next, 9999999)) : '';
+  renderAmount();
+}
+
+function confirmStep() {
+  if ($('amount-next').disabled) return;
+  const amount = Number(flow.digits), name = ledger.name(flow.to);
+  $('confirm-avatar').replaceChildren(avatar(name, 'big-avatar-inner'));
+  $('confirm-to').textContent = name; $('confirm-amount').textContent = points(amount);
+  $('confirm-code').textContent = `BRV-${flow.to}`;
+  $('confirm-from').textContent = `${me.name} · BRV-${me.code}`;
+  $('memo').value = ''; showStep('confirm');
+}
+
+function doneView(state, title, status) {
+  $('done-mark').dataset.state = state; $('done-title').textContent = title; $('done-status').textContent = status;
+}
+
+function sendTransfer() {
+  const amount = Number(flow.digits), to = flow.to;
+  if (!(amount >= 1 && amount <= available() && amount <= MAX_AMOUNT) || !CODE.test(to) || to === me.code) {
+    showStep('amount'); renderAmount(); return;
+  }
   const memo = $('memo').value.trim().slice(0, 40);
-  const feedback = $('transfer-feedback');
-  if (!/^[A-HJ-NP-Z2-9]{6}$/.test(to)) { feedback.textContent = '받는 사람을 고르거나 계좌번호(BRV-XXXXXX)를 입력해 주세요.'; return; }
-  if (to === me.code) { feedback.textContent = '내 계좌로는 보낼 수 없습니다.'; return; }
-  if (!Number.isSafeInteger(amount) || amount < 1 || amount > MAX_AMOUNT) { feedback.textContent = '금액은 1P 이상 1,000,000P 이하로 입력해 주세요.'; return; }
-  if (amount > account.balance - reserved()) { feedback.textContent = '잔액이 부족합니다.'; return; }
-  const n = hooks.uuid();
+  const n = hooks.uuid(), name = ledger.name(to), current = flow;
   const transfer = { n, from: me.code, to, amount, memo };
-  hooks.enqueue({
+  current.n = n;
+  showStep('done');
+  doneView('pending', `${name}님에게\n${points(amount)}를 보내고 있어요`, '처리 중이에요');
+  current.entry = hooks.enqueue({
     kind: 'ledger', transfer, key: n, author: me.name, container: $('ledger-outbox'),
     body: encodeTransfer({ ...transfer, fromName: me.name, toName: ledger.accounts.get(to)?.name }),
-    summary: `송금 ${points(amount)} → ${ledger.name(to)}${memo ? ` · ${memo}` : ''}`,
-    onSaved: (saved, ack) => {
+    summary: `송금 ${points(amount)} → ${name}${memo ? ` · ${memo}` : ''}`,
+    onSaved: (saved, ack, entry) => {
       acknowledged(saved, ack);
-      feedback.textContent = `${ledger.name(to)}에게 ${points(amount)}를 보냈습니다 · 거래 #${saved.id}`;
+      $('transfer-feedback').textContent = `${name}님에게 ${points(amount)}를 보냈어요 · 거래 #${saved.id}`;
+      if (flow !== current) return;
+      clearInterval(mirror);
+      const where = ack?.env ? `${envLabel(ack.env)}에서 처리` : '처리 완료';
+      const retried = entry.attempts > 1 ? ` · ${entry.attempts}번 시도했지만 출금은 한 번만 됐어요` : '';
+      doneView('ok', `${name}님에게\n${points(amount)}를 보냈어요`, `거래 #${saved.id} · ${where}${retried}`);
+    },
+    onFailed: (code, permanent) => {
+      if (flow !== current) return;
+      clearInterval(mirror);
+      doneView('error', permanent ? '송금이 거절됐어요' : '송금 결과를 아직 확인하지 못했어요',
+        permanent ? '입력을 확인하고 새로 보내 주세요.'
+          : '이미 처리됐을 수 있어요. 거래 내역을 확인하거나 처리 대기 목록에서 같은 요청으로 다시 시도해 주세요.');
     },
   });
-  $('amount').value = ''; $('memo').value = ''; feedback.textContent = '';
+  // While the platform pauses writes, mirror the queue's own retry state.
+  clearInterval(mirror);
+  mirror = setInterval(() => {
+    if (flow !== current || $('done-mark').dataset.state !== 'pending') { clearInterval(mirror); return; }
+    if ((current.entry?.state?.textContent || '').includes('재시도')) {
+      $('done-status').textContent = '시스템 전환 중이라 잠시 기다리고 있어요 · 같은 거래 번호로 다시 보내므로 출금은 한 번만 돼요';
+    }
+  }, 300);
   render();
 }
 
@@ -215,13 +332,27 @@ export function init(options) {
   hooks = options;
   $('open-account').onclick = openAccount;
   $('open-name').onkeydown = (event) => { if (event.key === 'Enter' && !event.isComposing) { event.preventDefault(); openAccount(); } };
-  $('transfer-form').onsubmit = sendTransfer;
-  $('to').onchange = () => { $('to-code-row').hidden = $('to').value !== ''; };
-  for (const chip of document.querySelectorAll('[data-amount]')) {
-    chip.onclick = () => { $('amount').value = Number(chip.dataset.amount).toLocaleString('ko-KR'); };
-  }
+  $('open-send').onclick = openSheet;
+  $('to-search').oninput = renderToList;
+  for (const key of document.querySelectorAll('[data-key]')) key.onclick = () => press(key.dataset.key);
+  for (const chip of document.querySelectorAll('[data-add]')) chip.onclick = () => add(chip.dataset.add);
+  $('amount-next').onclick = confirmStep;
+  $('transfer-send').onclick = sendTransfer;
+  $('done-close').onclick = () => $('send-sheet').close();
+  $('sheet-close').onclick = () => $('send-sheet').close();
+  $('sheet-back').onclick = () => {
+    if (flow.step === 'amount') showStep('to');
+    else if (flow.step === 'confirm') { showStep('amount'); renderAmount(); }
+  };
+  $('send-sheet').addEventListener('close', () => { clearInterval(mirror); flow = null; });
+  $('send-sheet').onkeydown = (event) => {
+    if (flow?.step !== 'amount' || event.target.tagName === 'INPUT') return;
+    if (/^[0-9]$/.test(event.key)) { event.preventDefault(); press(event.key); }
+    else if (event.key === 'Backspace') { event.preventDefault(); press('back'); }
+    else if (event.key === 'Enter') { event.preventDefault(); confirmStep(); }
+  };
   $('verify').onclick = () => verify();
-  $('copy-code').onclick = async () => {
+  $('copy-code').onclick = $('copy-code-2').onclick = async () => {
     try { await navigator.clipboard.writeText(`BRV-${me.code}`); $('transfer-feedback').textContent = '내 계좌번호를 복사했습니다.'; }
     catch { $('transfer-feedback').textContent = `내 계좌번호: BRV-${me?.code}`; }
   };

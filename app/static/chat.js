@@ -331,13 +331,14 @@ async function send(entry) {
     const permanent = ['conflict', 'rejected', 'too_large', 'uploads_disabled'].includes(error.code);
     entry.state.textContent = ({ uploads_disabled: '첨부 업로드 제한 · 첨부 없이 새 메시지를 작성해 주세요', conflict: '내용 충돌 · 새 메시지로 작성해 주세요', rejected: '요청 거부 · 입력을 확인해 주세요', too_large: '첨부 용량 초과', paused: '재시도 일시 정지 · 저장 여부 미확인' })[error.code] || '자동 재시도 종료 · 저장 여부 미확인';
     entry.retry.hidden = permanent; entry.pause.hidden = true; entry.dismiss.hidden = false;
+    entry.onFailed?.(error.code, permanent);
   } finally { entry.running = false; updateOutbox(); }
 }
 
 // One queue for chat messages and ledger rows: every entry keeps one frozen
 // payload and one idempotency key across every retry and environment switch.
-function enqueue({ kind, author, body, file = null, summary, container, onSaved, transfer = null, key = uuid() }) {
-  const entry = { kind, transfer, onSaved, message: Object.freeze({ idempotency_key: key, author, body, attachment_id: file ? uuid() : null }), file, uploaded: false, running: false, attempts: 0, trail: [] };
+function enqueue({ kind, author, body, file = null, summary, container, onSaved, onFailed, transfer = null, key = uuid() }) {
+  const entry = { kind, transfer, onSaved, onFailed, message: Object.freeze({ idempotency_key: key, author, body, attachment_id: file ? uuid() : null }), file, uploaded: false, running: false, attempts: 0, trail: [] };
   entry.el = document.createElement('div'); entry.el.className = 'pending-item';
   const details = document.createElement('div'), text = document.createElement('p');
   text.textContent = summary; entry.state = document.createElement('small');

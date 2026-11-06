@@ -53,30 +53,13 @@
         <span class="small-label">잔액</span>
         <strong id="balance">0P</strong>
         <small id="balance-note">사용 가능 포인트</small>
+        <div class="account-actions">
+          <button id="open-send" type="button">송금</button>
+          <button id="copy-code-2" class="ghost-light" type="button">내 계좌번호 복사</button>
+        </div>
+        <p id="transfer-feedback" class="account-feedback" role="status"></p>
       </div>
 
-      <form id="transfer-form" class="card transfer" hidden>
-        <h2>송금</h2>
-        <label for="to">받는 사람</label>
-        <select id="to"></select>
-        <div id="to-code-row" class="to-code" hidden>
-          <label for="to-code" class="sr-only">받는 계좌번호</label>
-          <input id="to-code" type="text" placeholder="BRV-XXXXXX" maxlength="10" autocomplete="off" autocapitalize="characters">
-        </div>
-        <label for="amount">금액</label>
-        <div class="amount-row">
-          <input id="amount" type="text" inputmode="numeric" placeholder="0" autocomplete="off"><span>P</span>
-        </div>
-        <div class="chips" role="group" aria-label="빠른 금액">
-          <button type="button" data-amount="10000">1만</button>
-          <button type="button" data-amount="30000">3만</button>
-          <button type="button" data-amount="50000">5만</button>
-        </div>
-        <label for="memo">받는 분에게 보일 메모</label>
-        <input id="memo" type="text" maxlength="40" placeholder="예: 점심값" autocomplete="off">
-        <button id="transfer-send" type="submit">보내기</button>
-        <p id="transfer-feedback" class="feedback" role="status"></p>
-      </form>
 
       <section id="ledger-outbox" class="card outbox" aria-label="처리 대기 거래" aria-live="polite" hidden></section>
 
@@ -180,6 +163,59 @@
       </section>
     </aside>
   </main>
+
+  <dialog id="send-sheet" class="sheet" aria-labelledby="sheet-title">
+    <div class="sheet-bar">
+      <button id="sheet-back" class="sheet-icon" type="button" aria-label="이전 단계">‹</button>
+      <span id="sheet-title" class="sr-only">송금</span>
+      <button id="sheet-close" class="sheet-icon" type="button" aria-label="송금 닫기">✕</button>
+    </div>
+
+    <section id="step-to" class="step" aria-label="받는 사람 선택">
+      <h2>누구에게 보낼까요?</h2>
+      <label for="to-search" class="sr-only">이름 또는 계좌번호</label>
+      <input id="to-search" type="search" placeholder="이름 또는 계좌번호(BRV-…) 검색" autocomplete="off" autocapitalize="characters">
+      <p class="step-sub">이 방에서 계좌를 연 사람</p>
+      <ul id="to-list" class="to-list"></ul>
+    </section>
+
+    <section id="step-amount" class="step" aria-label="금액 입력" hidden>
+      <p class="to-line"><strong id="amount-to"></strong>님에게</p>
+      <div id="amount-display" class="amount-display" data-empty="true" aria-live="polite">얼마를 보낼까요?</div>
+      <p id="amount-hint" class="amount-hint">잔액 0P</p>
+      <div class="quick-add" role="group" aria-label="금액 더하기">
+        <button type="button" data-add="10000">+1만</button>
+        <button type="button" data-add="50000">+5만</button>
+        <button type="button" data-add="100000">+10만</button>
+        <button type="button" data-add="all">전액</button>
+      </div>
+      <div class="keypad" role="group" aria-label="숫자 키패드">
+        <button type="button" data-key="1">1</button><button type="button" data-key="2">2</button><button type="button" data-key="3">3</button>
+        <button type="button" data-key="4">4</button><button type="button" data-key="5">5</button><button type="button" data-key="6">6</button>
+        <button type="button" data-key="7">7</button><button type="button" data-key="8">8</button><button type="button" data-key="9">9</button>
+        <button type="button" data-key="00">00</button><button type="button" data-key="0">0</button><button type="button" data-key="back" aria-label="한 자리 지우기">←</button>
+      </div>
+      <button id="amount-next" class="sheet-cta" type="button" disabled>다음</button>
+    </section>
+
+    <section id="step-confirm" class="step confirm" aria-label="송금 확인" hidden>
+      <span id="confirm-avatar" class="big-avatar" aria-hidden="true"></span>
+      <h2><span id="confirm-to"></span>님에게<br><span id="confirm-amount" class="em"></span>를 보낼까요?</h2>
+      <dl class="confirm-rows">
+        <div><dt>받는 분 계좌</dt><dd id="confirm-code"></dd></div>
+        <div><dt>출금 계좌</dt><dd id="confirm-from"></dd></div>
+        <div class="memo-row"><dt><label for="memo">받는 분에게 표시</label></dt><dd><input id="memo" type="text" maxlength="40" placeholder="메모 (선택)" autocomplete="off"></dd></div>
+      </dl>
+      <button id="transfer-send" class="sheet-cta" type="button">보내기</button>
+    </section>
+
+    <section id="step-done" class="step done" aria-label="송금 결과" hidden>
+      <div id="done-mark" class="done-mark" data-state="pending" aria-hidden="true"><span></span></div>
+      <h2 id="done-title"></h2>
+      <p id="done-status" class="done-status" role="status"></p>
+      <button id="done-close" class="sheet-cta" type="button">확인</button>
+    </section>
+  </dialog>
 
   <dialog id="share-dialog" aria-labelledby="share-title">
     <div class="dialog-heading"><h2 id="share-title">Bravo 뱅크에 참여</h2><button id="close-share" class="icon-button" type="button" aria-label="QR 닫기">✕</button></div>
