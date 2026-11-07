@@ -226,3 +226,7 @@ body.messenger #wallet { display: flex; height: auto; max-height: none; overflow
   .list-heading { padding-top: 30px; }
 }
 @media (prefers-reduced-motion: reduce) { .messenger *, .messenger *::before, .messenger *::after { scroll-behavior: auto !important; animation-duration: .001ms !important; transition-duration: .001ms !important; } }
+/* 로그인(OIDC)을 켠 서버에서만 보인다. */
+.messenger .login-button { padding: 2px 8px; border: 1px solid #d5d7da; border-radius: 10px; background: #fff; color: #3a3d42; font-size: 10px; cursor: pointer; }
+.messenger .login-button[hidden] { display: none; }
+.messenger #name[readonly] { color: #3a3d42; font-weight: 600; }

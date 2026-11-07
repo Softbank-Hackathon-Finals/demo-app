@@ -4,6 +4,7 @@ import { Continuity, duration, envKey, envLabel } from './observe.js';
 import * as wallet from './wallet.js';
 import * as messenger from './messenger.js';
 import { decode, points } from './ledger.js';
+import * as auth from './auth.js';
 
 const $ = (id) => document.getElementById(id);
 const cursor = new MessageCursor();
@@ -29,6 +30,41 @@ function uuid() {
 }
 
 try { $('name').value = sessionStorage.getItem('bravo-alias') || ''; } catch { /* Private browsing. */ }
+
+// --- Sign-in (OIDC) ---------------------------------------------------------
+// 서버가 로그인을 켰을 때만 동작한다. 꺼져 있으면 지금처럼 별명으로 쓴다.
+// 이름 칸은 토큰의 이름으로 고정한다. 서버는 다른 이름으로 쓴 메시지를 403으로 거절한다.
+
+let authConfig = { enabled: false };
+function signedIn() { try { return authConfig.enabled ? auth.session(sessionStorage) : null; } catch { return null; } }
+function authHeaders() { const current = signedIn(); return current ? { Authorization: `Bearer ${current.token}` } : {}; }
+function renderIdentity() {
+  if (!authConfig.enabled) return;
+  const current = signedIn();
+  $('login').hidden = Boolean(current); $('logout').hidden = !current;
+  $('name').readOnly = true; $('name').value = current?.name ?? '';
+  $('name').placeholder = current ? '' : '로그인하면 이름이 채워집니다';
+}
+async function setupAuth() {
+  try {
+    const response = await fetch('/api/auth/config', { signal: AbortSignal.timeout(3000) });
+    if (response.ok) authConfig = await response.json();
+  } catch { /* 발급자를 못 읽으면 로그인 버튼만 숨긴 채 읽기는 계속된다. */ }
+  if (!authConfig.enabled) return;
+  try {
+    const done = await auth.finishLogin(authConfig, { storage: sessionStorage, location });
+    if (done) history.replaceState(null, '', done.cleanUrl);
+  } catch (error) {
+    if (error.cleanUrl) history.replaceState(null, '', error.cleanUrl);
+    $('feedback').textContent = '로그인을 마치지 못했습니다. 다시 로그인해 주세요.';
+  }
+  renderIdentity();
+}
+$('login').onclick = async () => {
+  try { location.assign(await auth.startLogin(authConfig, { storage: sessionStorage, location })); }
+  catch { $('feedback').textContent = '로그인 창을 열지 못했습니다. 잠시 뒤 다시 시도해 주세요.'; }
+};
+$('logout').onclick = () => { try { auth.signOut(sessionStorage); } catch { /* Private browsing. */ } renderIdentity(); };
 
 // --- Continuity panel -------------------------------------------------------
 
@@ -350,7 +386,7 @@ async function send(entry) {
       if (!uploadsEnabled) throw Object.assign(new Error('uploads_disabled'), { code: 'uploads_disabled' });
       await deliver(tracked(entry, 'upload', (signal) => {
         const form = new FormData(); form.append('file', entry.file);
-        return fetch(`/api/attachments/${entry.message.attachment_id}`, { method: 'PUT', body: form, signal });
+        return fetch(`/api/attachments/${entry.message.attachment_id}`, { method: 'PUT', body: form, headers: authHeaders(), signal });
       }), { ...options, validate: (value) => {
         if (value?.id !== entry.message.attachment_id) throw new Error('invalid_attachment_ack');
         return value;
@@ -358,7 +394,7 @@ async function send(entry) {
       entry.uploaded = true;
     }
     const saved = await deliver(tracked(entry, 'message', (signal) => fetch('/api/messages', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(entry.message), signal,
+      method: 'POST', headers: { 'Content-Type': 'application/json', ...authHeaders() }, body: JSON.stringify(entry.message), signal,
     })), { ...options, validate: (value) => {
       validateMessage(value);
       if (value.author !== entry.message.author || value.body !== entry.message.body ||
@@ -371,8 +407,9 @@ async function send(entry) {
     entry.onSaved(saved, entry.ack ?? { env: null, saved: false }, entry);
     record(continuity.delivered(saved.id, entry.attempts, Date.now()));
   } catch (error) {
-    const permanent = ['conflict', 'rejected', 'too_large', 'uploads_disabled'].includes(error.code);
-    entry.state.textContent = ({ uploads_disabled: '첨부 업로드 제한 · 첨부 없이 새 메시지를 작성해 주세요', conflict: '내용 충돌 · 새 메시지로 작성해 주세요', rejected: '요청 거부 · 입력을 확인해 주세요', too_large: '첨부 용량 초과', paused: '재시도 일시 정지 · 저장 여부 미확인' })[error.code] || '자동 재시도 종료 · 저장 여부 미확인';
+    const permanent = ['conflict', 'rejected', 'too_large', 'uploads_disabled', 'unauthorized'].includes(error.code);
+    if (error.code === 'unauthorized') renderIdentity();
+    entry.state.textContent = ({ unauthorized: '로그인이 필요하거나 만료됐습니다 · 다시 로그인해 주세요', uploads_disabled: '첨부 업로드 제한 · 첨부 없이 새 메시지를 작성해 주세요', conflict: '내용 충돌 · 새 메시지로 작성해 주세요', rejected: '요청 거부 · 입력을 확인해 주세요', too_large: '첨부 용량 초과', paused: '재시도 일시 정지 · 저장 여부 미확인' })[error.code] || '자동 재시도 종료 · 저장 여부 미확인';
     entry.retry.hidden = permanent; entry.pause.hidden = true; entry.dismiss.hidden = false;
     entry.onFailed?.(error.code, permanent);
   } finally { entry.running = false; updateOutbox(); }
@@ -381,6 +418,8 @@ async function send(entry) {
 // One queue for chat messages and ledger rows: every entry keeps one frozen
 // payload and one idempotency key across every retry and environment switch.
 function enqueue({ kind, author, body, file = null, summary, container, onSaved, onFailed, transfer = null, key = uuid() }) {
+  // 로그인 중이면 채팅·지갑 모두 토큰의 이름으로 쓴다. 서버는 다른 이름을 거절한다.
+  author = signedIn()?.name ?? author;
   const entry = { kind, transfer, onSaved, onFailed, message: Object.freeze({ idempotency_key: key, author, body, attachment_id: file ? uuid() : null }), file, uploaded: false, running: false, attempts: 0, trail: [] };
   entry.el = document.createElement('div'); entry.el.className = 'pending-item';
   const details = document.createElement('div'), text = document.createElement('p');
@@ -401,6 +440,9 @@ function enqueue({ kind, author, body, file = null, summary, container, onSaved,
 
 $('form').onsubmit = (event) => {
   event.preventDefault(); if (pending.size >= 10) return;
+  if (authConfig.enabled && !signedIn()) {
+    renderIdentity(); $('feedback').textContent = '로그인한 뒤 메시지를 보낼 수 있습니다.'; $('login').focus(); return;
+  }
   const author = $('name').value.trim(), body = $('body').value, file = $('file').files[0];
   if (file && !uploadsEnabled) { $('feedback').textContent = '현재 새 첨부파일 업로드가 제한되어 있습니다.'; return; }
   if (!author || (!body.trim() && !file)) {
@@ -476,7 +518,7 @@ async function startup() {
 
 messenger.init({ showTab });
 $('pending-transfers').onclick = () => showTab('home');
-wallet.init({ enqueue, uuid, pending: () => [...pending], showTab,
+wallet.init({ enqueue, uuid, pending: () => [...pending], showTab, identity: () => signedIn()?.name ?? null,
   updated: () => messenger.updateMembers(wallet.participants()),
   savedTransfer: (saved, ack) => append([saved], { env: ack?.env ?? null, saved: ack?.saved === true }),
   beforeSend: () => $('wallet-dialog').close(),
@@ -486,5 +528,6 @@ wallet.init({ enqueue, uuid, pending: () => [...pending], showTab,
   },
 });
 renderSplit();
+await setupAuth();
 await startup();
 connect();

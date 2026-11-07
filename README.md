@@ -141,6 +141,27 @@ TLS 수신 또는 같은 Pod sidecar의 루프백 수신 경로, NetworkPolicy, 
 | `ATTACHMENT_UPLOAD_ENABLED` | 새 첨부 업로드 허용. 기본 `true`, 이전 복사 전 모든 serving 파드에 `false` 적용. 소문자 `true`/`false` 외에는 시작 실패 |
 | `POLL_INTERVAL` · `TX_TIMEOUT_MS` · `WRITE_BLOCK_RETRY_AFTER` | 전파 주기(1초) · 쓰기 트랜잭션 제한(200ms) · `Retry-After`(2초) |
 | `DB_WAIT_SECONDS` | 연결 풀에서 연결을 기다리는 최대 시간(5초). 넘으면 503 |
+| `AUTH_ISSUER` · `AUTH_CLIENT_ID` | 로그인(OIDC) 발급자 주소와 공개 클라이언트 ID. 둘 다 비우면 로그인 없이 지금처럼 동작한다. 하나만 넣으면 시작 실패 |
+| `AUTH_ALSO_TRUST` | 서명만 믿는 다른 발급자. `발급자\|클라이언트ID`를 쉼표로 잇는다. 이사 중 목적지 앱이 출발지 토큰을 받을 때 쓴다 |
+
+## 로그인 (Cognito · Keycloak)
+
+`AUTH_ISSUER`를 넣으면 메시지와 첨부 **쓰기**에 로그인이 필요하다. 읽기(대화 보기 · WebSocket)는 로그인 없이 그대로다.
+표준 OIDC만 쓰므로 Cognito 사용자 풀과 Keycloak realm이 같은 코드로 동작한다. 발급자를 바꾸는 일은 **설정 교체**다.
+
+| 발급자 | `AUTH_ISSUER` 예 |
+|---|---|
+| Amazon Cognito | `https://cognito-idp.<region>.amazonaws.com/<user-pool-id>` |
+| Keycloak | `https://<호스트>/realms/<realm>` |
+
+- 브라우저는 Authorization Code + PKCE(S256)로 로그인한다. 클라이언트 비밀은 없다. 콜백 주소는 앱 주소의 `/`다.
+- 서버는 ID 토큰의 RS256 서명(발급자 공개 키), `iss`, `aud`(= 클라이언트 ID), 만료를 확인한다. Cognito 액세스 토큰(`token_use=access`)은 받지 않는다.
+- 작성자 이름은 토큰의 `preferred_username` → `cognito:username` → `email` → `name` → `sub` 순으로 고른다(40자). 다른 이름으로 쓰면 **403**이다. 서버가 이름을 바꿔 저장하지 않는다(브라우저가 응답의 작성자를 대조한다).
+- 쓰기 차단 중에는 로그인보다 먼저 503 + `Retry-After`가 나간다. 컷오버 응답은 로그인 여부와 무관하다.
+- 발급자 문서나 공개 키를 못 받으면 503 + `Retry-After`다(토큰 거절 401과 구별).
+- **이사 중:** 목적지 앱은 `AUTH_ISSUER`를 목적지 발급자로, `AUTH_ALSO_TRUST`에 출발지 Cognito를 둔다. 트래픽을 나누는 동안 출발지에서 로그인한 사람의 쓰기가 목적지에서도 받아진다. 이사가 끝나면 `AUTH_ALSO_TRUST`를 지워 AWS 의존을 끊는다.
+- **한계:** Cognito는 비밀번호 해시를 내보내지 않는다. 사용자는 옮길 수 있어도 비밀번호는 옮길 수 없어 목적지에서 비밀번호를 다시 정해야 한다.
+- 부하 생성기(T18)처럼 사람이 아닌 쓰기도 토큰이 필요하다. 로그인을 켠 상태의 부하 측정은 별도 계정과 토큰 발급이 먼저다.
 
 ## API
 
@@ -151,6 +172,7 @@ TLS 수신 또는 같은 Pod sidecar의 루프백 수신 경로, NetworkPolicy, 
 | `GET /api/messages?after=<id>` · `GET /api/attachments/{id}` | 읽기. 쓰기 차단 중에도 된다 |
 | `WS /ws?after=<id>` | `hello` → `messages`(id 순) · `status`(쓰기 차단 변경). 마지막 id 이후를 DB에서 1초마다 조회한다. 서버 종료 시 1012로 닫는다 |
 | `GET /api/info` | 접속 환경 · 쓰기 차단 상태 · `attachment_upload_enabled` (현재 프로세스의 시작 정책) |
+| `GET /api/auth/config` | 로그인 설정. 꺼져 있으면 `{"enabled": false}`, 켜져 있으면 발급자 · 클라이언트 ID · 로그인/토큰 주소 |
 | `GET /healthz` · `/readyz` | 생존 · 준비. **DB를 보지 않는다** (아래 "운영") |
 | `GET /api/health/db` | DB까지 닿는지(2초 제한). 모니터링용, probe로 쓰지 않는다 |
 

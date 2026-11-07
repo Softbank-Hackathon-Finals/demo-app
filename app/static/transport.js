@@ -75,7 +75,7 @@ export async function deliver(request, {
       if (response.ok) return validate(await response.json());
       if (response.status < 500 && response.status !== 429) {
         throw new DeliveryError(response.status === 409 ? 'conflict' :
-          response.status === 413 ? 'too_large' : 'rejected');
+          response.status === 413 ? 'too_large' : response.status === 401 ? 'unauthorized' : 'rejected');
       }
       delay = retryDelay(response.headers.get('Retry-After'), attempt, now());
     } catch (error) {
