@@ -22,8 +22,8 @@ class Settings:
     # 로그인(OIDC). 비우면 로그인 없이 지금처럼 동작한다. Cognito든 Keycloak이든 주소만 다르다.
     auth_issuer: str | None = None
     auth_client_id: str | None = None
-    # 서명만 믿는 다른 발급자 (주소, 클라이언트 ID). 이사 중 출발지에서 받은 토큰을 받기 위해 쓴다.
-    auth_also_trust: tuple[tuple[str, str], ...] = ()
+    # 서명만 믿는 다른 발급자 (주소, 클라이언트 ID[, 묶인 이름]). 이사 중 출발지에서 받은 토큰을 받기 위해 쓴다.
+    auth_also_trust: tuple[tuple[str, ...], ...] = ()
 
     def __post_init__(self):
         if type(self.attachment_upload_enabled) is not bool:
@@ -60,12 +60,15 @@ class Settings:
         )
 
 
-def parse_trust(value: str) -> tuple[tuple[str, str], ...]:
-    """`발급자주소|클라이언트ID`를 쉼표로 잇는다. 예: `https://a|c1,https://b|c2`."""
-    pairs = []
+def parse_trust(value: str) -> tuple[tuple[str, ...], ...]:
+    """`발급자주소|클라이언트ID[|이름]`을 쉼표로 잇는다. 예: `https://a|c1,https://a|lg|loadgen`.
+
+    세 번째 칸을 적으면 그 클라이언트로 받은 토큰은 그 이름일 때만 받는다(부하 생성기 계정).
+    """
+    entries = []
     for entry in filter(None, (part.strip() for part in value.split(","))):
-        url, sep, client_id = entry.partition("|")
-        if not sep or not url or not client_id:
-            raise ValueError("AUTH_ALSO_TRUST entries are issuer|client_id")
-        pairs.append((url, client_id))
-    return tuple(pairs)
+        fields = entry.split("|")
+        if len(fields) not in (2, 3) or not all(fields):
+            raise ValueError("AUTH_ALSO_TRUST entries are issuer|client_id[|name]")
+        entries.append(tuple(fields))
+    return tuple(entries)

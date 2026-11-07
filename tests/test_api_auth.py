@@ -151,3 +151,8 @@ def test_also_trust_parsing():
     assert parse_trust(f"{COGNITO.url}|c1, {KEYCLOAK.url}|c2") == ((COGNITO.url, "c1"), (KEYCLOAK.url, "c2"))
     with pytest.raises(ValueError):
         parse_trust(COGNITO.url)
+    # 세 번째 칸은 그 클라이언트로 받을 수 있는 유일한 이름이다(부하 생성기 계정).
+    assert parse_trust(f"{COGNITO.url}|lg|loadgen") == ((COGNITO.url, "lg", "loadgen"),)
+    for bad in (f"{COGNITO.url}|lg|", f"{COGNITO.url}|lg|a|b"):
+        with pytest.raises(ValueError):
+            parse_trust(bad)
