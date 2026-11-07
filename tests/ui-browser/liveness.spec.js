@@ -32,7 +32,7 @@ test('silent advertised connection loses online state and reconnects', async ({ 
   await expect(page.locator('#conn')).toHaveText('연결됨');
   await expect(page.locator('#conn')).not.toHaveClass(/online/, { timeout: 18000 });
   await expect.poll(() => connections, { timeout: 2000 }).toBeGreaterThan(1);
-  await expect(page.locator('#environment-note')).toHaveText('마지막으로 확인한 환경입니다.');
+  await expect(page.locator('#environment-note')).toHaveText('마지막으로 확인한 환경입니다. 다시 연결하는 중입니다.');
 });
 
 test('older server without capability does not receive an assumed idle deadline', async ({ page, request }) => {
