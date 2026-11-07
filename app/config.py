@@ -24,6 +24,8 @@ class Settings:
     auth_client_id: str | None = None
     # 서명만 믿는 다른 발급자 (주소, 클라이언트 ID). 이사 중 출발지에서 받은 토큰을 받기 위해 쓴다.
     auth_also_trust: tuple[tuple[str, str], ...] = ()
+    # 메시지 개인정보 검사 큐(T46). 비우면 검사 요청을 보내지 않고 지금처럼 동작한다.
+    pii_check_queue_url: str | None = None
 
     def __post_init__(self):
         if type(self.attachment_upload_enabled) is not bool:
@@ -57,6 +59,7 @@ class Settings:
             auth_issuer=env.get("AUTH_ISSUER") or None,
             auth_client_id=env.get("AUTH_CLIENT_ID") or None,
             auth_also_trust=parse_trust(env.get("AUTH_ALSO_TRUST", "")),
+            pii_check_queue_url=env.get("PII_CHECK_QUEUE_URL") or None,
         )
 
 

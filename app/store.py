@@ -96,6 +96,16 @@ class Store:
                 )
             return await cur.fetchall()
 
+    async def list_message_checks(self, after: int, limit: int) -> list[dict]:
+        """after 이후 메시지의 개인정보 검사 결과(T46). 종류와 개수만 있고 일치한 값은 없다."""
+        async with self.pool.connection() as conn, conn.cursor(row_factory=dict_row) as cur:
+            await cur.execute(
+                "SELECT message_id, has_pii, kinds, counts FROM message_checks"
+                " WHERE message_id > %s ORDER BY message_id LIMIT %s",
+                (after, limit),
+            )
+            return await cur.fetchall()
+
     async def add_attachment(
         self, attachment_id: uuid.UUID, object_key: str, filename: str, content_type: str, size: int
     ) -> dict:

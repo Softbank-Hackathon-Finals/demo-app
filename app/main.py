@@ -33,6 +33,7 @@ from app.auth import Identity, Issuer, OidcVerifier, ProviderUnavailable, TokenR
 from app.config import Settings
 from app.db_secret import DbCredentials, fetch_db_credentials
 from app.environment import EnvironmentFastAPI
+from app.events import EventUnavailable, MessageEvents
 from app.metrics import HttpMetrics
 from app.sockets import CloseUnconfirmed, SocketSession
 from app.storage import AttachmentConflict, AttachmentStorage, AttachmentUnavailable
@@ -68,6 +69,7 @@ def create_app(
     store: Store | None = None,
     storage: AttachmentStorage | None = None,
     auth: OidcVerifier | None = None,
+    events: MessageEvents | None = None,
 ) -> FastAPI:
     settings = settings or Settings.from_env()
     if auth is None and settings.auth_issuer is not None:
@@ -129,6 +131,8 @@ def create_app(
                 app.state.storage = AttachmentStorage(
                     settings.s3_bucket, settings.s3_endpoint_url, settings.s3_force_path_style
                 )
+            if app.state.events is None and settings.pii_check_queue_url:
+                app.state.events = MessageEvents(settings.pii_check_queue_url)
             yield
 
     app = EnvironmentFastAPI(environment=settings.app_env, title="demo-chat", lifespan=lifespan)
@@ -136,6 +140,7 @@ def create_app(
     app.state.settings = settings
     app.state.store = store
     app.state.storage = storage
+    app.state.events = events
     # 쓰기 차단 스위치는 프로세스마다 따로 둔다. 컷오버 중에는 DB가 멈춰 있어 DB에 둘 수 없다.
     # Executor는 모든 인스턴스(진입점)에 스위치를 켠다.
     app.state.write_blocked = os.environ.get("WRITE_BLOCKED", "false") == "true"
@@ -214,7 +219,8 @@ def create_app(
 
     @app.get("/api/info")
     async def info():
-        return public_status()
+        # 검사 켜짐 여부는 화면의 별도 표시(pii-check.js)만 읽는다. WebSocket 상태 메시지는 바꾸지 않는다.
+        return {**public_status(), "pii_check_enabled": app.state.events is not None}
 
     @app.get("/api/auth/config")
     async def auth_config():
@@ -250,7 +256,26 @@ def create_app(
             raise HTTPException(409, "idempotency key reused with different content") from e
         except UnknownAttachment as e:
             raise HTTPException(422, "unknown attachment") from e
+        if app.state.events is not None:
+            # 새로 저장했든 같은 멱등 키의 재요청이든 다시 보낸다. 앞선 요청이 저장 뒤 송신에 실패했을 수 있다.
+            # 같은 메시지를 여러 번 보내도 검사 결과는 message_id당 한 행이다.
+            try:
+                await run_in_threadpool(app.state.events.message_created, saved["id"])
+            except EventUnavailable as error:
+                log.warning("pii check request not sent for message %s: %s", saved["id"], error)
+                return JSONResponse(
+                    {"detail": "message saved but check request not sent; retry with the same key"},
+                    status_code=503,
+                    headers={"Retry-After": str(settings.retry_after)},
+                )
         return JSONResponse(jsonable_encoder(saved), status_code=201 if created else 200)
+
+    @app.get("/api/message-checks")
+    async def list_message_checks(after: int = 0):
+        """메시지 개인정보 검사 결과(T46). 검사를 켜지 않은 앱은 404다."""
+        if app.state.events is None:
+            raise HTTPException(404, "pii check is not enabled")
+        return jsonable_encoder(await app.state.store.list_message_checks(after, PAGE_SIZE))
 
     @app.put(
         "/api/attachments/{attachment_id}",

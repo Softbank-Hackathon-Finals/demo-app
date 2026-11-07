@@ -19,4 +19,15 @@ CREATE TABLE IF NOT EXISTS messages (
     created_at      timestamptz NOT NULL DEFAULT now()
 );
 
-GRANT SELECT, INSERT ON attachments, messages TO chat_app;
+-- 메시지 개인정보 검사 결과(T46). 핸들러가 쓴다. PK는 messages 행 번호라 메시지 하나에 결과 하나다.
+-- 일치한 값과 본문은 저장하지 않고 종류와 개수만 둔다. 새 시퀀스가 없어 컷오버 시퀀스 보정 대상이 늘지 않는다.
+CREATE TABLE IF NOT EXISTS message_checks (
+    message_id     bigint      PRIMARY KEY REFERENCES messages (id),
+    has_pii        boolean     NOT NULL,
+    kinds          text[]      NOT NULL,
+    counts         jsonb       NOT NULL,
+    sqs_message_id text        NOT NULL,
+    checked_at     timestamptz NOT NULL DEFAULT now()
+);
+
+GRANT SELECT, INSERT ON attachments, messages, message_checks TO chat_app;
