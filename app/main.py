@@ -73,7 +73,7 @@ def create_app(
     if auth is None and settings.auth_issuer is not None:
         auth = OidcVerifier(
             Issuer(settings.auth_issuer, settings.auth_client_id),
-            tuple(Issuer(url, client_id) for url, client_id in settings.auth_also_trust),
+            tuple(Issuer(*entry) for entry in settings.auth_also_trust),
         )
 
     @asynccontextmanager

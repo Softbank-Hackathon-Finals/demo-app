@@ -93,6 +93,40 @@ def test_during_migration_the_target_also_trusts_the_source_issuer():
     assert verifier.verify(keycloak.token()).issuer == KEYCLOAK.url
 
 
+def test_one_issuer_can_be_trusted_for_several_clients():
+    # 같은 발급자의 브라우저 클라이언트와 부하 생성기 클라이언트를 함께 믿는다(AUTH_ALSO_TRUST에 같은 발급자 두 번).
+    # 나중에 적은 클라이언트가 앞의 것을 지우면, 출발지에서 로그인한 방문자의 쓰기가 401이 된다.
+    loadgen = Issuer(COGNITO.url, "loadgen-client")
+    cognito, keycloak = FakeProvider(COGNITO, "c1"), FakeProvider(KEYCLOAK, "k1")
+    verifier = OidcVerifier(KEYCLOAK, also_trusted=(COGNITO, loadgen), fetch=Fetcher(cognito, keycloak))
+    assert verifier.verify(cognito.token()).issuer == COGNITO.url
+    assert verifier.verify(cognito.token(aud="loadgen-client")).issuer == COGNITO.url
+    assert verifier.verify(keycloak.token()).issuer == KEYCLOAK.url
+    with pytest.raises(TokenRejected):
+        verifier.verify(cognito.token(aud="someone-else"))
+    with pytest.raises(TokenRejected):
+        # 다른 발급자의 클라이언트 ID로는 받지 않는다.
+        verifier.verify(cognito.token(aud=KEYCLOAK.client_id))
+
+
+def test_a_client_pinned_to_one_name_cannot_write_as_anyone_else():
+    # 부하 생성기 클라이언트는 비밀번호만 알면 아무 계정의 토큰이든 받을 수 있다(브라우저 로그인·PKCE를 거치지 않음).
+    # 그 클라이언트의 토큰은 정해 둔 이름일 때만 받아, 방문자 이름으로 글을 쓰지 못하게 한다.
+    loadgen = Issuer(COGNITO.url, "loadgen-client", "loadgen")
+    cognito, keycloak = FakeProvider(COGNITO, "c1"), FakeProvider(KEYCLOAK, "k1")
+    verifier = OidcVerifier(KEYCLOAK, also_trusted=(COGNITO, loadgen), fetch=Fetcher(cognito, keycloak))
+    assert verifier.verify(cognito.token(aud="loadgen-client", **{"cognito:username": "loadgen"})).name == "loadgen"
+    with pytest.raises(TokenRejected):
+        verifier.verify(cognito.token(aud="loadgen-client"))
+    # 브라우저 클라이언트로 받은 방문자 토큰은 그대로 받는다.
+    assert verifier.verify(cognito.token()).name == "visitor01"
+
+
+def test_conflicting_entries_for_one_client_are_refused():
+    with pytest.raises(ValueError):
+        OidcVerifier(KEYCLOAK, also_trusted=(Issuer(COGNITO.url, "c", "loadgen"), Issuer(COGNITO.url, "c")))
+
+
 def test_untrusted_issuer_is_rejected_without_fetching_its_keys():
     cognito, keycloak = FakeProvider(COGNITO), FakeProvider(KEYCLOAK)
     fetcher = Fetcher(cognito, keycloak)

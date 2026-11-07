@@ -36,6 +36,9 @@ class ProviderUnavailable(Exception):
 class Issuer:
     url: str
     client_id: str
+    # 이 클라이언트로 받은 토큰을 이 이름일 때만 받는다. 부하 생성기 클라이언트처럼 브라우저 로그인 없이
+    # 비밀번호로 토큰을 받는 클라이언트가 방문자 이름으로 쓰지 못하게 묶는다. None이면 묶지 않는다.
+    only_name: str | None = None
 
     def __post_init__(self):
         parts = urlsplit(self.url)
@@ -44,6 +47,8 @@ class Issuer:
             raise ValueError("issuer must use https")
         if not self.client_id:
             raise ValueError("client_id is required")
+        if self.only_name is not None and not self.only_name:
+            raise ValueError("only_name must not be empty")
 
 
 @dataclass(frozen=True)
@@ -83,7 +88,14 @@ class OidcVerifier:
         clock: Callable[[], float] = time.monotonic,
     ):
         self.login = login
-        self._issuers = {issuer.url: issuer for issuer in (*also_trusted, login)}
+        # 발급자마다 믿는 클라이언트 ID와 그 클라이언트에 묶인 이름. 같은 발급자의 브라우저 클라이언트와
+        # 부하 생성기 클라이언트처럼 하나의 발급자를 여러 클라이언트로 믿을 수 있어야 한다.
+        self._audiences: dict[str, dict[str, str | None]] = {}
+        for issuer in (login, *also_trusted):
+            clients = self._audiences.setdefault(issuer.url, {})
+            if clients.get(issuer.client_id, issuer.only_name) != issuer.only_name:
+                raise ValueError("one client is trusted twice with different names")
+            clients[issuer.client_id] = issuer.only_name
         self._fetch = fetch
         self._clock = clock
         self._lock = threading.Lock()
@@ -108,19 +120,20 @@ class OidcVerifier:
             unverified = jwt.decode(token, options={"verify_signature": False})
         except jwt.PyJWTError as error:
             raise TokenRejected("malformed token") from error
-        issuer = self._issuers.get(unverified.get("iss"))
-        if issuer is None:
+        issuer_url = unverified.get("iss")
+        audiences = self._audiences.get(issuer_url) if isinstance(issuer_url, str) else None
+        if audiences is None:
             raise TokenRejected("untrusted issuer")
         if header.get("alg") != "RS256":
             raise TokenRejected("unsupported algorithm")
-        key = self._key(issuer.url, header.get("kid"))
+        key = self._key(issuer_url, header.get("kid"))
         try:
             claims = jwt.decode(
                 token,
                 key.key,
                 algorithms=["RS256"],
-                audience=issuer.client_id,
-                issuer=issuer.url,
+                audience=list(audiences),
+                issuer=issuer_url,
                 leeway=60,
                 options={"require": ["exp", "iat", "iss", "aud", "sub"]},
             )
@@ -129,7 +142,12 @@ class OidcVerifier:
         # Cognito 액세스 토큰은 aud가 없고 token_use=access다. 사용자 신원은 ID 토큰으로만 받는다.
         if claims.get("token_use", "id") != "id":
             raise TokenRejected("not an id token")
-        return Identity(str(claims["sub"]), issuer.url, display_name(claims))
+        name = display_name(claims)
+        audience = claims["aud"] if isinstance(claims["aud"], list) else [claims["aud"]]
+        pinned = {audiences[client] for client in audiences if client in audience}
+        if None not in pinned and name not in pinned:
+            raise TokenRejected("this client may not write as this user")
+        return Identity(str(claims["sub"]), issuer_url, name)
 
     def _discover(self, issuer_url: str) -> dict:
         with self._lock:
