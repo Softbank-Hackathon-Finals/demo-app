@@ -52,7 +52,7 @@ async function setupAuth() {
   } catch { /* 발급자를 못 읽으면 로그인 버튼만 숨긴 채 읽기는 계속된다. */ }
   if (!authConfig.enabled) return;
   try {
-    const done = await auth.finishLogin(authConfig, { storage: sessionStorage, location });
+    const done = await auth.finishLogin({ storage: sessionStorage, location });
     if (done) history.replaceState(null, '', done.cleanUrl);
   } catch (error) {
     if (error.cleanUrl) history.replaceState(null, '', error.cleanUrl);
