@@ -5,6 +5,7 @@ import os
 import uuid
 from contextlib import AsyncExitStack, asynccontextmanager
 from pathlib import Path
+from time import monotonic
 from typing import Annotated
 
 from fastapi import (
@@ -284,10 +285,11 @@ def create_app(
         session = SocketSession(websocket)
         sockets.add(session)
         sent_status = public_status()
+        status_sent_at = monotonic()
         receiver = asyncio.create_task(_drain(websocket))
         last_id = after
         try:
-            await session.send_json({"type": "hello", **public_status()})
+            await session.send_json({"type": "hello", **public_status(), "heartbeat_interval_seconds": 5})
             while not receiver.done() and not session.closed:
                 try:
                     items = await app.state.store.list_messages(last_id, PAGE_SIZE)
@@ -300,9 +302,11 @@ def create_app(
                     await session.send_json({"type": "messages", "items": jsonable_encoder(items)})
                 elif items is not None and last_id is None:
                     last_id = 0
-                if public_status() != sent_status:
-                    sent_status = public_status()
+                current_status = public_status()
+                if current_status != sent_status or monotonic() - status_sent_at >= 5:
+                    sent_status = current_status
                     await session.send_json({"type": "status", **sent_status})
+                    status_sent_at = monotonic()
                 if items is None or len(items) < PAGE_SIZE:
                     await asyncio.wait({receiver}, timeout=settings.poll_interval)
         except WebSocketDisconnect:

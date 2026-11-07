@@ -1,0 +1,64 @@
+{
+  "kind": "t22-websocket-liveness-qualification.v1",
+  "baseline_revision": "7c11a91b4f738c7a7da9909beeddfa2faecb9782",
+  "server_heartbeat_seconds": 5,
+  "advertised_receive_silence_seconds": 15,
+  "timer_scope": "foreground JavaScript execution; not a hard wall-clock guarantee",
+  "new_python_tests": 1,
+  "new_browser_cases_per_engine": 7,
+  "node_tests": 10,
+  "python_tests_with_actual_postgres": 152,
+  "browser_executions_memory_store": {
+    "chromium": 16,
+    "webkit": 16
+  },
+  "browser_executions_actual_postgres": 32,
+  "postgres_fixture": {
+    "scope": "local browser / shared PostgreSQL / test attachment storage",
+    "database_migration": "NOT_VERIFIED",
+    "cloud_cutover": "NOT_VERIFIED",
+    "postgres_version": "17.11 (Homebrew)",
+    "python_exit_code": 0,
+    "browser_exit_code": 0,
+    "owned_postgres_stopped": true
+  },
+  "fault_scope": "controlled client receive blackhole and capability mutation; no shared server outage",
+  "legacy_server_omission_preserves_existing_behavior": true,
+  "malformed_capability_rejected": [
+    "numeric string",
+    "boolean",
+    "zero",
+    "unsupported interval"
+  ],
+  "production_deployed": false,
+  "cloud_cutover_verified": false,
+  "business_database_migration_verified": false,
+  "first_postgres_attempt": {
+    "python_passed": 151,
+    "python_failed": 1,
+    "cause": "exact hello expectation did not include newly negotiated field",
+    "owned_postgres_stopped": true
+  },
+  "private_artifact_hashes": [
+    {
+      "artifact": "red-backend",
+      "sha256": "7ebe90ded9aa4531f251a3766c0fb864ea5186c6f6e19a0cd6b9843e62642753"
+    },
+    {
+      "artifact": "red-browser",
+      "sha256": "0fa8583e60d90f472b1ba6bdb319ef2e1cac79625326a004e85e3547a53897cb"
+    },
+    {
+      "artifact": "postgres-python",
+      "sha256": "d44fdbc1fb6a6df5c2df9f4dad6f39967bdf2d3a98febb334cce3ad843081af4"
+    },
+    {
+      "artifact": "postgres-browser",
+      "sha256": "9792f4c58554257fe7c5600c3a6e46da16649bc530ce75b7206828a7d6a0a83d"
+    },
+    {
+      "artifact": "postgres-result",
+      "sha256": "86cfa21ec030ec67c9d2029a99a19ee99f3296ef194ecb4970ef29c7255ae393"
+    }
+  ]
+}
