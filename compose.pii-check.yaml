@@ -1,0 +1,39 @@
+# T46 로컬 시험: 기본 compose.yaml에 덧씌워 메시지 개인정보 검사를 켠다. 기본 구성은 바꾸지 않는다.
+#   docker compose -f compose.yaml -f compose.pii-check.yaml up -d --build
+# app-aws · app-onprem 모두 같은 큐로 보내고, platform의 호환 런타임(t46-function-runtime:local)이
+# functions/pii_check를 고치지 않고 실행한다. 값은 모두 로컬 전용이다.
+services:
+  app-aws:
+    environment:
+      PII_CHECK_QUEUE_URL: https://sqs.ap-northeast-1.amazonaws.com/000000000000/message-created
+      AWS_ENDPOINT_URL_SQS: http://queue:9324
+    depends_on:
+      queue: { condition: service_started }
+
+  app-onprem:
+    environment:
+      PII_CHECK_QUEUE_URL: https://sqs.ap-northeast-1.amazonaws.com/000000000000/message-created
+      AWS_ENDPOINT_URL_SQS: http://queue:9324
+    depends_on:
+      queue: { condition: service_started }
+
+  queue:
+    image: softwaremill/elasticmq-native@sha256:e4580ab9ad1bd5cd37b4ba04911bc5ccc8cd2d9ab4de56ece65acee71c24e05c  # 1.7.1
+    volumes: ["./testing/pii_check/elasticmq.conf:/opt/elasticmq.conf:ro"]
+    ports: ["19324:9324"]
+
+  pii-check:
+    build:
+      context: ./functions/pii_check
+      args: { RUNTIME_IMAGE: "t46-function-runtime:local" }
+    depends_on:
+      db: { condition: service_healthy }
+      queue: { condition: service_started }
+    environment:
+      AWS_ENDPOINT_URL_SQS: http://queue:9324
+      AWS_ACCESS_KEY_ID: local
+      AWS_SECRET_ACCESS_KEY: local
+      ADMIN_TOKEN: local-admin
+      DB_DSN: postgresql://chat_app:local-only-app@db:5432/chat
+    volumes: ["./testing/pii_check/runtime.json:/etc/function-runtime/config.json:ro"]
+    restart: unless-stopped
