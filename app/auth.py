@@ -83,7 +83,13 @@ class OidcVerifier:
         clock: Callable[[], float] = time.monotonic,
     ):
         self.login = login
-        self._issuers = {issuer.url: issuer for issuer in (*also_trusted, login)}
+        # 발급자마다 믿는 클라이언트 ID 목록. 같은 발급자의 브라우저 클라이언트와 부하 생성기 클라이언트처럼
+        # 하나의 발급자를 여러 클라이언트로 믿을 수 있어야 한다. 뒤의 것이 앞의 것을 지우지 않게 모은다.
+        self._audiences: dict[str, tuple[str, ...]] = {}
+        for issuer in (login, *also_trusted):
+            known = self._audiences.get(issuer.url, ())
+            if issuer.client_id not in known:
+                self._audiences[issuer.url] = (*known, issuer.client_id)
         self._fetch = fetch
         self._clock = clock
         self._lock = threading.Lock()
@@ -108,19 +114,20 @@ class OidcVerifier:
             unverified = jwt.decode(token, options={"verify_signature": False})
         except jwt.PyJWTError as error:
             raise TokenRejected("malformed token") from error
-        issuer = self._issuers.get(unverified.get("iss"))
-        if issuer is None:
+        issuer_url = unverified.get("iss")
+        audiences = self._audiences.get(issuer_url) if isinstance(issuer_url, str) else None
+        if audiences is None:
             raise TokenRejected("untrusted issuer")
         if header.get("alg") != "RS256":
             raise TokenRejected("unsupported algorithm")
-        key = self._key(issuer.url, header.get("kid"))
+        key = self._key(issuer_url, header.get("kid"))
         try:
             claims = jwt.decode(
                 token,
                 key.key,
                 algorithms=["RS256"],
-                audience=issuer.client_id,
-                issuer=issuer.url,
+                audience=list(audiences),
+                issuer=issuer_url,
                 leeway=60,
                 options={"require": ["exp", "iat", "iss", "aud", "sub"]},
             )
@@ -129,7 +136,7 @@ class OidcVerifier:
         # Cognito 액세스 토큰은 aud가 없고 token_use=access다. 사용자 신원은 ID 토큰으로만 받는다.
         if claims.get("token_use", "id") != "id":
             raise TokenRejected("not an id token")
-        return Identity(str(claims["sub"]), issuer.url, display_name(claims))
+        return Identity(str(claims["sub"]), issuer_url, display_name(claims))
 
     def _discover(self, issuer_url: str) -> dict:
         with self._lock:

@@ -142,7 +142,7 @@ TLS 수신 또는 같은 Pod sidecar의 루프백 수신 경로, NetworkPolicy, 
 | `POLL_INTERVAL` · `TX_TIMEOUT_MS` · `WRITE_BLOCK_RETRY_AFTER` | 전파 주기(1초) · 쓰기 트랜잭션 제한(200ms) · `Retry-After`(2초) |
 | `DB_WAIT_SECONDS` | 연결 풀에서 연결을 기다리는 최대 시간(5초). 넘으면 503 |
 | `AUTH_ISSUER` · `AUTH_CLIENT_ID` | 로그인(OIDC) 발급자 주소와 공개 클라이언트 ID. 둘 다 비우면 로그인 없이 지금처럼 동작한다. 하나만 넣으면 시작 실패 |
-| `AUTH_ALSO_TRUST` | 서명만 믿는 다른 발급자. `발급자\|클라이언트ID`를 쉼표로 잇는다. 이사 중 양쪽 앱이 서로의 토큰을 받을 때 쓴다 |
+| `AUTH_ALSO_TRUST` | 서명만 믿는 다른 발급자. `발급자\|클라이언트ID`를 쉼표로 잇는다. 이사 중 양쪽 앱이 서로의 토큰을 받을 때 쓴다. 같은 발급자를 클라이언트만 바꿔 여러 번 적으면 모두 믿는다(예: 부하 생성기 전용 클라이언트) |
 
 ## 로그인 (Cognito · Keycloak)
 

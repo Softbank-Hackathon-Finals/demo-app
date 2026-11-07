@@ -93,6 +93,22 @@ def test_during_migration_the_target_also_trusts_the_source_issuer():
     assert verifier.verify(keycloak.token()).issuer == KEYCLOAK.url
 
 
+def test_one_issuer_can_be_trusted_for_several_clients():
+    # 같은 발급자의 브라우저 클라이언트와 부하 생성기 클라이언트를 함께 믿는다(AUTH_ALSO_TRUST에 같은 발급자 두 번).
+    # 나중에 적은 클라이언트가 앞의 것을 지우면, 출발지에서 로그인한 방문자의 쓰기가 401이 된다.
+    loadgen = Issuer(COGNITO.url, "loadgen-client")
+    cognito, keycloak = FakeProvider(COGNITO, "c1"), FakeProvider(KEYCLOAK, "k1")
+    verifier = OidcVerifier(KEYCLOAK, also_trusted=(COGNITO, loadgen), fetch=Fetcher(cognito, keycloak))
+    assert verifier.verify(cognito.token()).issuer == COGNITO.url
+    assert verifier.verify(cognito.token(aud="loadgen-client")).issuer == COGNITO.url
+    assert verifier.verify(keycloak.token()).issuer == KEYCLOAK.url
+    with pytest.raises(TokenRejected):
+        verifier.verify(cognito.token(aud="someone-else"))
+    with pytest.raises(TokenRejected):
+        # 다른 발급자의 클라이언트 ID로는 받지 않는다.
+        verifier.verify(cognito.token(aud=KEYCLOAK.client_id))
+
+
 def test_untrusted_issuer_is_rejected_without_fetching_its_keys():
     cognito, keycloak = FakeProvider(COGNITO), FakeProvider(KEYCLOAK)
     fetcher = Fetcher(cognito, keycloak)
