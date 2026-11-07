@@ -4,7 +4,7 @@
   "type": "module",
   "packageManager": "pnpm@10.28.2",
   "scripts": {
-    "lint": "node --check app/static/chat.js && node --check app/static/messenger.js && node --check app/static/transport.js && node --check app/static/observe.js && node --check app/static/ledger.js && node --check app/static/wallet.js && node --check app/static/stage.js",
+    "lint": "node --check app/static/chat.js && node --check app/static/messenger.js && node --check app/static/transport.js && node --check app/static/observe.js && node --check app/static/ledger.js && node --check app/static/wallet.js && node --check app/static/stage.js && node --check app/static/auth.js",
     "test": "node --test tests/ui-unit/*.test.js",
     "build": "node scripts/qr-asset.mjs --check",
     "test:browser": "playwright test"

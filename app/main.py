@@ -29,6 +29,7 @@ from psycopg.conninfo import make_conninfo
 from psycopg_pool import AsyncConnectionPool
 from pydantic import BaseModel, Field, model_validator
 
+from app.auth import Identity, Issuer, OidcVerifier, ProviderUnavailable, TokenRejected
 from app.config import Settings
 from app.db_secret import DbCredentials, fetch_db_credentials
 from app.environment import EnvironmentFastAPI
@@ -66,8 +67,14 @@ def create_app(
     settings: Settings | None = None,
     store: Store | None = None,
     storage: AttachmentStorage | None = None,
+    auth: OidcVerifier | None = None,
 ) -> FastAPI:
     settings = settings or Settings.from_env()
+    if auth is None and settings.auth_issuer is not None:
+        auth = OidcVerifier(
+            Issuer(settings.auth_issuer, settings.auth_client_id),
+            tuple(Issuer(url, client_id) for url, client_id in settings.auth_also_trust),
+        )
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -149,6 +156,23 @@ def create_app(
         if authorization is None or not hmac.compare_digest(authorization.encode(), expected):
             raise HTTPException(401)
 
+    async def current_user(authorization: str | None = Header(default=None)) -> Identity | None:
+        """로그인을 켠 앱에서만 쓰기에 ID 토큰을 요구한다. 읽기는 로그인 없이 본다(QR 관람)."""
+        if auth is None:
+            return None
+        scheme, _, token = (authorization or "").partition(" ")
+        if scheme.lower() != "bearer" or not token:
+            raise HTTPException(401, "sign in required", headers={"WWW-Authenticate": "Bearer"})
+        try:
+            return await run_in_threadpool(auth.verify, token)
+        except TokenRejected as error:
+            raise HTTPException(401, "sign in again", headers={"WWW-Authenticate": "Bearer"}) from error
+        except ProviderUnavailable as error:
+            log.warning("identity provider unavailable: %s", error)
+            raise HTTPException(
+                503, "identity provider unavailable", headers={"Retry-After": str(settings.retry_after)}
+            ) from error
+
     def status() -> dict:
         return {"env": settings.app_env, "write_blocked": app.state.write_blocked}
 
@@ -192,12 +216,32 @@ def create_app(
     async def info():
         return public_status()
 
+    @app.get("/api/auth/config")
+    async def auth_config():
+        """브라우저가 어느 발급자로 로그인할지. 발급자를 바꾸는 것은 설정뿐이다."""
+        if auth is None:
+            return {"enabled": False}
+        try:
+            return await run_in_threadpool(auth.login_config)
+        except ProviderUnavailable as error:
+            log.warning("identity provider unavailable: %s", error)
+            raise HTTPException(
+                503, "identity provider unavailable", headers={"Retry-After": str(settings.retry_after)}
+            ) from error
+
     @app.get("/api/messages")
     async def list_messages(after: int | None = None):
         return jsonable_encoder(await app.state.store.list_messages(after, PAGE_SIZE))
 
+    # 쓰기 차단(503)을 로그인 확인보다 먼저 본다. 컷오버 중에는 누구든 같은 응답을 받는다.
     @app.post("/api/messages", dependencies=[Depends(require_writable)])
-    async def post_message(message: NewMessage):
+    async def post_message(
+        message: NewMessage, user: Annotated[Identity | None, Depends(current_user)]
+    ):
+        # 작성자 이름은 토큰의 이름과 같아야 한다. 다른 이름으로 쓰면 고치지 않고 거절한다.
+        # 브라우저는 응답의 작성자가 보낸 값과 같은지 확인하므로 서버가 바꿔 쓰면 안 된다.
+        if user is not None and message.author != user.name:
+            raise HTTPException(403, "author must be the signed-in user")
         try:
             saved, created = await app.state.store.add_message(
                 message.idempotency_key, message.author, message.body, message.attachment_id
@@ -208,7 +252,10 @@ def create_app(
             raise HTTPException(422, "unknown attachment") from e
         return JSONResponse(jsonable_encoder(saved), status_code=201 if created else 200)
 
-    @app.put("/api/attachments/{attachment_id}", dependencies=[Depends(require_writable)])
+    @app.put(
+        "/api/attachments/{attachment_id}",
+        dependencies=[Depends(require_writable), Depends(current_user)],
+    )
     async def put_attachment(attachment_id: uuid.UUID, file: Annotated[UploadFile, File()]):
         data = await file.read(settings.max_attachment_bytes + 1)
         if len(data) > settings.max_attachment_bytes:

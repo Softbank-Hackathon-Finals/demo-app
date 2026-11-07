@@ -19,10 +19,19 @@ class Settings:
     db_wait_seconds: float = 5
     max_attachment_bytes: int = 10 * 1024 * 1024
     attachment_upload_enabled: bool = True
+    # 로그인(OIDC). 비우면 로그인 없이 지금처럼 동작한다. Cognito든 Keycloak이든 주소만 다르다.
+    auth_issuer: str | None = None
+    auth_client_id: str | None = None
+    # 서명만 믿는 다른 발급자 (주소, 클라이언트 ID). 이사 중 출발지에서 받은 토큰을 받기 위해 쓴다.
+    auth_also_trust: tuple[tuple[str, str], ...] = ()
 
     def __post_init__(self):
         if type(self.attachment_upload_enabled) is not bool:
             raise ValueError("attachment_upload_enabled must be a boolean")
+        if (self.auth_issuer is None) != (self.auth_client_id is None):
+            raise ValueError("AUTH_ISSUER and AUTH_CLIENT_ID must be set together")
+        if self.auth_also_trust and self.auth_issuer is None:
+            raise ValueError("AUTH_ALSO_TRUST needs AUTH_ISSUER")
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -45,4 +54,18 @@ class Settings:
             retry_after=int(env.get("WRITE_BLOCK_RETRY_AFTER", "2")),
             db_wait_seconds=float(env.get("DB_WAIT_SECONDS", "5")),
             attachment_upload_enabled=upload_enabled == "true",
+            auth_issuer=env.get("AUTH_ISSUER") or None,
+            auth_client_id=env.get("AUTH_CLIENT_ID") or None,
+            auth_also_trust=parse_trust(env.get("AUTH_ALSO_TRUST", "")),
         )
+
+
+def parse_trust(value: str) -> tuple[tuple[str, str], ...]:
+    """`발급자주소|클라이언트ID`를 쉼표로 잇는다. 예: `https://a|c1,https://b|c2`."""
+    pairs = []
+    for entry in filter(None, (part.strip() for part in value.split(","))):
+        url, sep, client_id = entry.partition("|")
+        if not sep or not url or not client_id:
+            raise ValueError("AUTH_ALSO_TRUST entries are issuer|client_id")
+        pairs.append((url, client_id))
+    return tuple(pairs)

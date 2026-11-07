@@ -180,7 +180,8 @@ function renderHistory() {
 // --- Actions ----------------------------------------------------------------
 
 function openAccount() {
-  const name = $('open-name').value.trim().slice(0, 20);
+  // 로그인 중이면 지갑 이름도 토큰의 이름이다. 메시지 작성자 확인(서버 403)과 맞춘다.
+  const name = hooks.identity?.() ?? $('open-name').value.trim().slice(0, 20);
   if (!name) { $('open-feedback').textContent = '이름(별명)을 입력해 주세요.'; $('open-name').focus(); return; }
   me = { code: newAccountCode(), name }; write(ACCOUNT_KEY, me); opening = true;
   $('name').value = name;
