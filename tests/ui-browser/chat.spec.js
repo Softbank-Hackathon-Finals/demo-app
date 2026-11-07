@@ -1,10 +1,12 @@
 import { test, expect } from '@playwright/test';
 import { randomUUID } from 'node:crypto';
 import jsQR from 'jsqr';
+import { expectObservedClose, observeSocketClosures } from './socket-observation.js';
 
 const admin = { Authorization: 'Bearer browser-test-only' };
 const message = (body) => ({ author: '다른 참여자', body, idempotency_key: randomUUID() });
 test.beforeEach(async ({ page, request }) => {
+  await observeSocketClosures(page);
   await request.post('/__test__/reset');
   await page.goto('/');
   await expect(page.locator('#conn')).toHaveText('연결됨');
@@ -132,13 +134,14 @@ test('mobile layout, local preview and sharing omit query tokens', async ({ page
   await page.locator('#file-preview button').click();
   await expect(page.locator('#file-preview')).toBeHidden();
   await page.locator('#share-mobile').click();
-  await expect(page.locator('#share-url')).toHaveValue('http://127.0.0.1:18922/');
+  const sharedAddress = `${new URL(page.url()).origin}/`;
+  await expect(page.locator('#share-url')).toHaveValue(sharedAddress);
   await expect(page.locator('#qr')).toBeVisible();
   const pixels = await page.locator('#qr').evaluate((canvas) => ({
     width: canvas.width, height: canvas.height,
     data: [...canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height).data],
   }));
-  expect(jsQR(Uint8ClampedArray.from(pixels.data), pixels.width, pixels.height)?.data).toBe('http://127.0.0.1:18922/');
+  expect(jsQR(Uint8ClampedArray.from(pixels.data), pixels.width, pixels.height)?.data).toBe(sharedAddress);
   await expect(page.locator('#share-note')).toContainText('현재 PC 전용');
 });
 
@@ -172,4 +175,23 @@ test('migration upload policy clears selection and blocks direct upload while ch
   await request.post('/__test__/switch/aws');
   await expect(page.locator('#file')).toBeEnabled();
   await expect(page.locator('#upload-policy')).toBeHidden();
+});
+
+test('each message shows the environment the browser observed and the switch is recorded', async ({ page, request }) => {
+  await page.locator('#body').fill('출발지에서 저장'); await page.locator('#send').click();
+  await expect(page.locator('#log .msg .served')).toHaveText(['AWS 저장']);
+  await request.post('/api/messages', { data: message('다른 참여자의 출발지 메시지') });
+  await expect(page.locator('#log .msg .served')).toHaveText(['AWS 저장', 'AWS 경유']);
+  await expect(page.locator('#env-pill')).toHaveAttribute('data-env', 'aws');
+  await request.post('/__test__/switch/onprem');
+  await expect(page.locator('#env')).toHaveText('온프렘');
+  await expect(page.locator('#env-pill')).toHaveAttribute('data-env', 'onprem');
+  await expectObservedClose(page, page.locator('#timeline'));
+  await expect(page.locator('#timeline')).toContainText('처리 환경 전환 · AWS → 온프렘');
+  await expect(page.locator('#log .system')).toContainText('AWS → 온프렘');
+  await expect(page.locator('#stat-reconnects')).toHaveText('1회');
+  await page.locator('#body').fill('목적지에서 저장'); await page.locator('#send').click();
+  await expect(page.locator('#log .msg .served')).toHaveText(['AWS 저장', 'AWS 경유', '온프렘 저장']);
+  await expect(page.locator('#split-legend')).toHaveText(/AWS 2건\s*온프렘 1건/);
+  await expect(page.locator('#log .msg')).toHaveCount(3);
 });

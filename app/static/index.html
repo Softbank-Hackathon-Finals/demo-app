@@ -4,68 +4,260 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="referrer" content="no-referrer">
-  <title>Bravo 상담 데모</title>
+  <meta name="theme-color" content="#fee500">
+  <title>브라보톡 · 대화는 계속됩니다</title>
   <link rel="stylesheet" href="/chat.css">
+  <link rel="stylesheet" href="/messenger.css">
   <script type="module" src="/chat.js"></script>
 </head>
-<body>
+<body class="messenger" data-tab="chat" data-view="chats" data-mobile-room="true">
+<svg class="icon-sprite" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><symbol id="i-chat" viewBox="0 0 24 24"><path d="M20 11a8 8 0 0 1-8 8H8l-5 3 1-6a8 8 0 1 1 16-5Z"/></symbol><symbol id="i-people" viewBox="0 0 24 24"><circle cx="9" cy="7" r="4"/><path d="M2 22v-3a7 7 0 0 1 14 0v3M17 4a4 4 0 0 1 0 8m2 3a6 6 0 0 1 3 5v2"/></symbol><symbol id="i-wallet" viewBox="0 0 24 24"><path d="M3 6h17v15H3zM3 6V3h14v3M16 11h6v5h-6z"/></symbol><symbol id="i-more" viewBox="0 0 24 24"><circle cx="4" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="20" cy="12" r="1"/></symbol><symbol id="i-search" viewBox="0 0 24 24"><circle cx="10" cy="10" r="7"/><path d="m15 15 7 7"/></symbol><symbol id="i-back" viewBox="0 0 24 24"><path d="m14 4-8 8 8 8"/></symbol><symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 4v16M4 12h16"/></symbol><symbol id="i-close" viewBox="0 0 24 24"><path d="m5 5 14 14M5 19 19 5"/></symbol><symbol id="i-smile" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M8 15s4 4 8 0M8 9h.01M16 9h.01"/></symbol><symbol id="i-image" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8" cy="8" r="1.5"/><path d="m3 17 6-6 4 4 3-3 5 5"/></symbol><symbol id="i-qr" viewBox="0 0 24 24"><path d="M2 2h7v7H2zM15 2h7v7h-7zM2 15h7v7H2zM15 15h3v3h-3zM21 14v8h-6M12 2v3M2 12h4M12 10v4h-2M12 21v1"/></symbol><symbol id="i-monitor" viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 22h8M12 17v5m-7-8 4-4 4 2 5-6"/></symbol><symbol id="i-arrow" viewBox="0 0 24 24"><path d="m5 12 7-7 7 7M12 5v15"/></symbol></svg>
+  <nav class="app-rail" aria-label="브라보톡 메뉴">
+    <a class="talk-logo" href="/" aria-label="브라보톡 홈"><svg aria-hidden="true"><use href="#i-chat"/></svg></a>
+    <button id="nav-friends" class="rail-button" type="button" data-view="friends" aria-label="참여자" aria-pressed="false"><svg aria-hidden="true"><use href="#i-people"/></svg><span>참여자</span></button>
+    <button id="nav-chats" class="rail-button active" type="button" data-view="chats" aria-label="채팅" aria-pressed="true"><svg aria-hidden="true"><use href="#i-chat"/></svg><span>채팅</span></button>
+    <button id="nav-wallet" class="rail-button" type="button" aria-label="포인트 지갑"><svg aria-hidden="true"><use href="#i-wallet"/></svg><span>지갑</span></button>
+    <button id="nav-more" class="rail-button" type="button" data-view="more" aria-label="더보기" aria-pressed="false"><svg aria-hidden="true"><use href="#i-more"/></svg><span>더보기</span></button>
+    <div class="rail-spacer"></div>
+    <button id="share" class="rail-button" type="button" aria-label="참여 QR 열기"><svg aria-hidden="true"><use href="#i-qr"/></svg><span>초대</span></button>
+    <button id="my-profile" class="my-avatar" type="button" aria-label="내 이름 수정"><span id="my-initial">나</span></button>
+  </nav>
+
+  <aside class="conversation-list" aria-label="대화 목록">
+    <header class="list-heading"><div><p class="list-brand">BRAVO TALK</p><h1 id="list-title">채팅</h1></div>
+      <button id="invite" class="plain-icon" type="button" aria-label="대화방에 초대"><svg aria-hidden="true"><use href="#i-plus"/></svg></button></header>
+    <label id="list-search-wrap" class="list-search"><svg aria-hidden="true"><use href="#i-search"/></svg><input id="list-search" type="search" placeholder="이름이나 대화 내용 검색" autocomplete="off"><span class="sr-only">대화 목록 검색</span></label>
+    <section id="chats-view" class="sidebar-view">
+      <p class="list-section-label">참여 중인 대화 <span>1</span></p>
+      <button id="room-open" class="conversation selected" type="button" aria-label="브라보 라운지 대화 열기">
+        <span class="group-avatar" aria-hidden="true"><span>B</span><span>우리</span></span>
+        <span class="conversation-text"><strong>브라보 라운지 <small id="list-members">공개방</small></strong><span id="room-preview">대화도, 포인트도 함께 나눠요.</span></span>
+        <span class="conversation-side"><time id="room-time"></time><span class="room-live">LIVE</span></span>
+      </button>
+      <p id="list-empty" class="sidebar-empty" hidden>검색 결과가 없어요.</p>
+      <div class="sidebar-note"><span class="note-symbol">↔</span><strong>환경이 바뀌어도, 대화는 계속.</strong><p>같은 주소에서 메시지와 첨부파일,<br>모의 포인트를 주고받아 보세요.</p></div>
+    </section>
+    <section id="friends-view" class="sidebar-view" hidden>
+      <p class="list-section-label">대화에서 확인한 참여자 <span id="friend-count">0</span></p>
+      <ul id="friends-list" class="friends-list"></ul>
+      <p class="member-note">이름은 참여자가 정한 별명이에요.<br>선택하면 같은 공개 대화방으로 이동해요.</p>
+    </section>
+    <section id="more-view" class="sidebar-view more-view" hidden>
+      <div class="more-profile"><span class="profile-avatar">B</span><strong id="profile-name">참여자</strong><small>브라보톡에 오신 걸 환영해요</small></div>
+      <button id="more-wallet" type="button"><svg aria-hidden="true"><use href="#i-wallet"/></svg>포인트 지갑<span>›</span></button>
+      <button id="more-observe" type="button"><svg aria-hidden="true"><use href="#i-monitor"/></svg>전환 관찰<span>›</span></button>
+      <a href="/stage.html" target="_blank" rel="noopener"><svg aria-hidden="true"><use href="#i-monitor"/></svg>발표 화면<span>↗</span></a>
+      <div class="demo-description"><strong>가볍게 대화하고, 자유롭게 옮기고.</strong><p>클라우드 이전을 체험하는 독립 데모입니다. 하나의 공개 대화방과 모의 포인트를 사용해요.</p></div>
+    </section>
+    <footer class="list-footer"><span class="mini-dot"></span>Beyond Lock-In<span>카카오톡 스타일의 독립 데모</span></footer>
+  </aside>
+
   <main class="shell">
-    <aside class="overview" aria-label="데모 안내">
-      <div class="brand"><span class="mark" aria-hidden="true">B</span> BRAVO LAB</div>
-      <p class="eyebrow">서비스 이전 체험</p>
-      <h1>환경이 바뀌어도,<br>대화는 이어지도록.</h1>
-      <p class="intro">메시지를 보내고, 연결된 앱의 환경과 전송 상태를 함께 확인하세요.</p>
-      <div class="environment-card">
-        <span class="small-label">현재 연결된 앱</span>
-        <strong id="env">연결 확인 중</strong>
-        <span id="conn" class="connection" role="status">연결 중</span>
-        <p id="environment-note">서버가 알려 준 실행 환경을 표시합니다.</p>
-      </div>
-      <div class="journey" aria-label="참여 방법">
-        <div><span>01</span><p>별명을 입력하고 대화에 참여</p></div>
-        <div><span>02</span><p>전환 중에는 같은 요청으로 재전송</p></div>
-        <div><span>03</span><p>연결 복구 후 메시지 도착 확인</p></div>
-      </div>
-      <button id="share" class="secondary" type="button">휴대폰으로 참여 · QR</button>
-      <p class="privacy">공개된 데모 대화방입니다. 실제 고객 정보·계좌번호·비밀번호를 입력하지 마세요.</p>
-    </aside>
-    <section class="chat-panel" aria-label="금융 상담 데모 대화방">
+
+
+    <section class="chat-panel" aria-label="브라보 라운지 대화방">
       <header class="chat-header">
-        <div><p class="eyebrow">FINANCE DEMO</p><h2>상담 라운지 <span class="demo-tag">모의 상담</span></h2></div>
-        <button id="share-mobile" class="icon-button" type="button" aria-label="참여 QR 열기">QR</button>
+        <button id="room-back" class="plain-icon mobile-back" type="button" aria-label="대화 목록으로"><svg aria-hidden="true"><use href="#i-back"/></svg></button>
+        <span class="room-avatar" aria-hidden="true">B</span>
+        <div class="room-heading"><h2>브라보 라운지 <span id="room-member-count"></span></h2><p>메시지와 마음을 나누는 공개 대화방</p></div>
+        <div class="room-actions">
+          <span id="env-pill" class="env-pill" data-env="unknown" title="이 브라우저에 응답한 앱의 설정값"><span class="dot"></span><span id="env-pill-text">확인 중</span></span>
+          <span id="conn" class="connection" role="status">연결 중</span>
+          <button id="room-search-toggle" class="plain-icon" type="button" aria-label="대화 검색" aria-expanded="false" aria-controls="room-search-panel"><svg aria-hidden="true"><use href="#i-search"/></svg></button>
+          <button id="panel-toggle" class="plain-icon" type="button" aria-label="전환 관찰" aria-expanded="false" aria-controls="observe"><svg aria-hidden="true"><use href="#i-monitor"/></svg></button>
+          <button id="share-mobile" class="plain-icon" type="button" aria-label="참여 QR 열기"><svg aria-hidden="true"><use href="#i-qr"/></svg></button>
+        </div>
       </header>
+      <div id="room-search-panel" class="room-search-panel" hidden><label for="room-search">표시된 대화 검색</label><input id="room-search" type="search" placeholder="찾고 싶은 메시지를 입력하세요" autocomplete="off"><span id="search-count" role="status"></span></div>
       <div id="banner" class="notice" role="status" hidden></div>
-      <div id="log" role="log" aria-label="상담 메시지" aria-live="polite" aria-relevant="additions">
-        <div id="empty" class="empty-state"><span aria-hidden="true">↗</span><h3>첫 대화를 시작해 보세요</h3><p>“이체 한도 변경은 어디서 하나요?”처럼<br>개인정보 없는 모의 질문을 보내 주세요.</p></div>
+      <p id="load-note" class="load-note" hidden></p>
+      <div class="day-divider"><span id="chat-date"></span></div>
+      <div id="log" role="log" aria-label="대화 메시지" aria-live="polite" aria-relevant="additions">
+        <div id="empty" class="empty-state"><span class="empty-talk"><svg aria-hidden="true"><use href="#i-chat"/></svg></span><h3>우리의 첫 대화를 시작해요</h3><p>인사를 건네거나, 파일을 나누거나.<br>아래 송금하기로 모의 포인트도 보낼 수 있어요.</p><small>실제 개인정보나 비밀번호는 입력하지 마세요.</small></div>
       </div>
-      <button id="jump" class="jump" type="button" hidden>새 메시지 · 아래로</button>
+      <button id="jump" class="jump" type="button" hidden>새 메시지가 있어요 ↓</button>
       <section id="outbox" aria-label="전송 대기 메시지" aria-live="polite" hidden></section>
+      <button id="pending-transfers" class="pending-transfers" type="button" hidden></button>
+      <div id="quick" hidden></div>
       <div id="file-preview" class="file-preview" hidden></div>
       <form id="form">
-        <div class="identity"><label for="name">참여 별명</label><input id="name" type="text" placeholder="예: 방문자 07" maxlength="40" autocomplete="off" required></div>
-        <div class="composer">
-          <label for="body" class="sr-only">메시지</label>
-          <textarea id="body" placeholder="모의 상담 메시지를 입력하세요" maxlength="2000" rows="2"></textarea>
+        <div class="identity"><label for="name">내 이름</label><input id="name" type="text" maxlength="40" placeholder="대화에 사용할 별명" autocomplete="off" required><span>공개 대화방 · 모의 서비스</span></div>
+        <div class="composer"><label for="body" class="sr-only">메시지</label><textarea id="body" placeholder="메시지를 입력하세요" maxlength="2000" rows="2"></textarea>
           <div class="composer-actions">
-            <label class="file-button" for="file">+ 첨부<input id="file" type="file" aria-label="첨부파일 선택" aria-describedby="upload-policy" disabled></label>
-            <span id="counter">0 / 2,000</span>
-            <button id="send" type="submit">보내기 <span aria-hidden="true">↑</span></button>
+            <button id="emoji-toggle" class="plain-icon" type="button" aria-label="이모지" aria-expanded="false" aria-controls="emoji-picker"><svg aria-hidden="true"><use href="#i-smile"/></svg></button>
+            <label class="file-button" for="file"><svg aria-hidden="true"><use href="#i-image"/></svg><span class="sr-only">첨부파일 선택</span><input id="file" type="file" aria-label="첨부파일 선택" aria-describedby="upload-policy" disabled></label>
+            <button id="composer-pay" class="pay-button" type="button"><span>₩</span>송금하기</button>
+            <span id="counter">0 / 2,000</span><button id="send" type="submit">전송</button>
           </div>
         </div>
-        <p id="upload-policy" class="feedback" role="status">첨부파일 사용 가능 여부를 확인하고 있습니다.</p>
-        <p id="feedback" class="feedback" role="status"></p>
+        <div id="emoji-picker" class="emoji-picker" role="group" aria-label="이모지 선택" hidden></div>
+        <p id="upload-policy" class="feedback" role="status">첨부파일 사용 가능 여부를 확인하고 있습니다.</p><p id="feedback" class="feedback" role="status"></p>
+        <p class="composer-hint">Enter로 전송 · Shift + Enter로 줄바꿈</p>
       </form>
-      <footer>공개 모의 대화방 · 개인정보 입력 금지. 전송 완료 전에는 이 창을 닫지 마세요.</footer>
     </section>
+    <aside id="observe" class="observe" aria-label="서비스 연속성 관찰">
+      <div class="observe-head">
+        <div><p class="eyebrow">BEYOND LOCK-IN</p><h2>서비스 연속성 관찰</h2></div>
+        <button id="panel-close" class="icon-button" type="button" aria-label="관찰 패널 닫기">✕</button>
+      </div>
+      <p class="observe-intro">이 서비스는 운영 중에 AWS에서 온프렘으로 옮겨질 수 있습니다. 아래 값은 이 브라우저가 직접 겪은 것만 보여 줍니다.</p>
+
+      <section id="env-card" class="env-card" data-env="unknown" aria-label="현재 처리 환경">
+        <span class="small-label">지금 이 화면을 처리하는 앱</span>
+        <strong id="env">연결 확인 중</strong>
+        <p id="environment-note">서버가 알려 준 실행 환경을 표시합니다.</p>
+        <ol class="route" aria-label="이전 경로">
+          <li data-route="aws"><span>출발지</span>AWS</li>
+          <li class="arrow" aria-hidden="true">⇄</li>
+          <li data-route="onprem"><span>목적지</span>온프렘</li>
+        </ol>
+      </section>
+
+      <section class="stats" aria-label="연속성 지표">
+        <div><span>재접속</span><strong id="stat-reconnects">0회</strong></div>
+        <div><span>마지막 끊김 공백</span><strong id="stat-gap">-</strong></div>
+        <div><span>쓰기 정지 누적</span><strong id="stat-blocked">-</strong></div>
+        <div><span>재시도 후 1건 저장</span><strong id="stat-retried">0건</strong></div>
+      </section>
+
+      <section class="split" aria-label="메시지를 처리한 환경">
+        <h3>대화 메시지를 처리한 환경 <small id="split-total">화면의 0건</small></h3>
+        <div id="split-bar" class="split-bar" role="img" aria-label="표시된 메시지 없음"></div>
+        <ul id="split-legend" class="split-legend"></ul>
+      </section>
+
+      <section class="timeline-box" aria-label="연결 기록">
+        <h3>연결 기록</h3>
+        <ol id="timeline" class="timeline"><li class="placeholder">아직 기록이 없습니다.</li></ol>
+      </section>
+
+      <section class="guarantees" aria-label="끊김 없이 이어지는 이유">
+        <h3>끊김 없이 이어지는 이유</h3>
+        <ul>
+          <li><strong>같은 거래 번호로만 재시도</strong>송금마다 브라우저가 만든 번호(멱등 키)로 다시 보내 전환 중에도 출금이 한 번만 됩니다.</li>
+          <li><strong>마지막 기록부터 재접속</strong>연결이 닫히면 마지막으로 받은 번호 이후만 다시 받습니다.</li>
+          <li><strong>공통 DB 기준 전파</strong>두 환경의 앱이 같은 쓰기 DB를 조회하므로 전환 중에도 서로의 거래를 봅니다.</li>
+        </ul>
+      </section>
+    </aside>
   </main>
+  <dialog id="wallet-dialog" class="wallet-dialog" aria-labelledby="wallet-title">
+      <div class="wallet-heading"><h2 id="wallet-title">포인트 지갑 <small>모의 서비스</small></h2><button id="wallet-close" class="plain-icon" type="button" aria-label="지갑 닫기"><svg aria-hidden="true"><use href="#i-close"/></svg></button></div>
+      <section id="wallet" class="wallet-panel" aria-label="내 지갑">
+      <p id="wallet-notice" class="notice wallet-notice" role="status" hidden></p>
+      <div id="onboard" class="card onboard">
+        <p class="eyebrow">BRAVO POINT</p>
+        <h1>계좌를 열면<br><span>100,000P</span>를 드려요</h1>
+        <p class="hint">발표 중에 옆 사람과 포인트를 주고받아 보세요. 서비스가 다른 클라우드로 옮겨 가는 동안에도 잔액과 거래는 그대로 남아요.</p>
+        <label for="open-name">이름 (그대로 써도 돼요)</label>
+        <input id="open-name" type="text" maxlength="20" placeholder="예: 방문자 07" autocomplete="off">
+        <button id="open-account" type="button">100,000P 받고 바로 시작</button>
+        <p id="open-feedback" class="feedback" role="status"></p>
+        <p class="fine">모의 포인트예요. 실제 돈·계좌번호·개인정보는 쓰지 않아요.</p>
+      </div>
+
+      <div id="account" class="card account" hidden>
+        <div class="account-top">
+          <span id="account-name"></span>
+          <button id="copy-code" class="code" type="button" title="내 계좌번호 복사"><span id="account-code"></span></button>
+        </div>
+        <span class="small-label">잔액</span>
+        <strong id="balance">0P</strong>
+        <small id="balance-note">사용 가능 포인트</small>
+        <div class="account-actions">
+          <button id="open-send" type="button">송금</button>
+          <button id="copy-code-2" class="ghost-light" type="button">내 계좌번호 복사</button>
+        </div>
+      </div>
+
+
+      <section id="recent-card" class="card recent" aria-label="최근 보낸 사람" hidden>
+        <h2>최근 보낸 사람</h2>
+        <ul id="recent" class="recent-list"></ul>
+      </section>
+
+      <section id="ledger-outbox" class="card outbox" aria-label="처리 대기 거래" aria-live="polite" hidden></section>
+
+      <section id="history-card" class="card history" aria-label="거래 내역" hidden>
+        <div class="history-head"><h2>거래 내역</h2><button id="verify" class="secondary" type="button">DB에서 다시 확인</button></div>
+        <p id="verify-result" class="verify" role="status">전환이 끝나면 지금 연결된 환경의 DB에서 내 기록을 자동으로 다시 읽어요.</p>
+        <ol id="history" class="history-list"></ol>
+      </section>
+    </section>
+    </dialog>
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+
+  <dialog id="send-sheet" class="sheet" aria-labelledby="sheet-title">
+    <div class="sheet-bar">
+      <button id="sheet-back" class="sheet-icon" type="button" aria-label="이전 단계">‹</button>
+      <span id="sheet-title" class="sr-only">송금</span>
+      <button id="sheet-close" class="sheet-icon" type="button" aria-label="송금 닫기">✕</button>
+    </div>
+
+    <section id="step-to" class="step" aria-label="받는 사람 선택">
+      <h2>누구에게 보낼까요?</h2>
+      <label for="to-search" class="sr-only">이름 또는 계좌번호</label>
+      <input id="to-search" type="search" placeholder="이름 또는 계좌번호(BRV-…) 검색" autocomplete="off" autocapitalize="characters">
+      <div class="to-scroll">
+        <div id="to-recent-wrap" hidden>
+          <p class="step-sub">최근 보낸 사람</p>
+          <ul id="to-recent" class="to-list"></ul>
+        </div>
+        <p class="step-sub">이 방 참여자</p>
+        <ul id="to-list" class="to-list"></ul>
+      </div>
+    </section>
+
+    <section id="step-amount" class="step" aria-label="금액 입력" hidden>
+      <p class="to-line"><strong id="amount-to"></strong>님에게</p>
+      <div id="amount-display" class="amount-display" data-empty="true" aria-live="polite">얼마를 보낼까요?</div>
+      <p id="amount-hint" class="amount-hint">잔액 0P</p>
+      <div class="quick-add" role="group" aria-label="금액 더하기">
+        <button type="button" data-add="10000">+1만</button>
+        <button type="button" data-add="50000">+5만</button>
+        <button type="button" data-add="100000">+10만</button>
+        <button type="button" data-add="all">전액</button>
+      </div>
+      <div class="keypad" role="group" aria-label="숫자 키패드">
+        <button type="button" data-key="1">1</button><button type="button" data-key="2">2</button><button type="button" data-key="3">3</button>
+        <button type="button" data-key="4">4</button><button type="button" data-key="5">5</button><button type="button" data-key="6">6</button>
+        <button type="button" data-key="7">7</button><button type="button" data-key="8">8</button><button type="button" data-key="9">9</button>
+        <button type="button" data-key="00">00</button><button type="button" data-key="0">0</button><button type="button" data-key="back" aria-label="한 자리 지우기">←</button>
+      </div>
+      <button id="amount-next" class="sheet-cta" type="button" disabled>다음</button>
+    </section>
+
+    <section id="step-confirm" class="step confirm" aria-label="송금 확인" hidden>
+      <span id="confirm-avatar" class="big-avatar" aria-hidden="true"></span>
+      <h2><span id="confirm-to"></span>님에게<br><span id="confirm-amount" class="em"></span>를 보낼까요?</h2>
+      <dl class="confirm-rows">
+        <div><dt>받는 분 계좌</dt><dd id="confirm-code"></dd></div>
+        <div><dt>출금 계좌</dt><dd id="confirm-from"></dd></div>
+        <div class="memo-row"><dt><label for="memo">받는 분에게 표시</label></dt><dd><input id="memo" type="text" maxlength="40" placeholder="메모 (선택)" autocomplete="off"></dd></div>
+      </dl>
+      <button id="transfer-send" class="sheet-cta" type="button">보내기</button>
+    </section>
+
+    <section id="step-done" class="step done" aria-label="송금 결과" hidden>
+      <div id="done-mark" class="done-mark" data-state="pending" aria-hidden="true"><span></span></div>
+      <h2 id="done-title"></h2>
+      <p id="done-status" class="done-status" role="status"></p>
+      <div class="done-actions">
+        <button id="done-history" class="soft" type="button">내역 보기</button>
+        <button id="done-share" class="soft" type="button">공유하기</button>
+      </div>
+      <button id="done-close" class="sheet-cta" type="button">확인</button>
+    </section>
+  </dialog>
+
   <dialog id="share-dialog" aria-labelledby="share-title">
-    <div class="dialog-heading"><h2 id="share-title">같은 대화방에 참여</h2><button id="close-share" class="icon-button" type="button" aria-label="QR 닫기">✕</button></div>
-    <p>휴대폰 카메라로 QR을 읽거나 주소를 복사하세요.</p>
-    <canvas id="qr" width="256" height="256" role="img" aria-label="현재 대화방 접속 QR"></canvas>
+    <div class="dialog-heading"><h2 id="share-title">브라보톡에 참여</h2><button id="close-share" class="icon-button" type="button" aria-label="QR 닫기">✕</button></div>
+    <p>휴대폰 카메라로 QR을 읽거나 주소를 복사하세요. 전환 중에도 같은 주소로 계속 이용할 수 있습니다.</p>
+    <canvas id="qr" width="256" height="256" role="img" aria-label="현재 서비스 접속 QR"></canvas>
     <input id="share-url" type="text" readonly aria-label="공유 주소">
     <button id="copy-link" type="button">주소 복사</button>
     <p id="share-note" role="status"></p>
   </dialog>
-  <noscript>이 데모 채팅은 JavaScript를 켜야 사용할 수 있습니다.</noscript>
+  <noscript>브라보톡은 JavaScript를 켜야 사용할 수 있습니다.</noscript>
 </body>
 </html>

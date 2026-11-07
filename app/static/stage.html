@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="referrer" content="no-referrer">
+  <meta name="robots" content="noindex">
+  <title>Bravo 뱅크 · 무중단 이전 현황</title>
+  <link rel="stylesheet" href="/chat.css">
+  <link rel="stylesheet" href="/stage.css">
+  <script type="module" src="/stage.js"></script>
+</head>
+<body class="stage">
+  <header class="stage-top">
+    <div class="brand"><span class="mark" aria-hidden="true">B</span><div><strong>Bravo 뱅크</strong><small>운영 중 클라우드 이전 · 발표 화면 (읽기 전용)</small></div></div>
+    <span id="conn" class="connection" role="status">연결 중</span>
+  </header>
+
+  <main class="stage-grid">
+    <section id="env-card" class="stage-env" data-env="unknown" aria-label="현재 처리 환경">
+      <span class="label">지금 서비스를 처리하는 환경</span>
+      <strong id="env">연결 확인 중</strong>
+      <ol id="path" class="path" aria-label="거쳐 온 환경"></ol>
+      <p id="write-state" class="write-state" data-state="open">쓰기 정상</p>
+    </section>
+
+    <section class="stage-invariant" aria-label="총 잔액 보존">
+      <span class="label">참여자 전체 잔액</span>
+      <strong id="total">0P</strong>
+      <p id="invariant" class="invariant" data-state="ok">개설 계좌 0개 × 100,000P와 일치</p>
+      <div class="kpis">
+        <div><span>개설 계좌</span><strong id="k-accounts">0</strong></div>
+        <div><span>송금</span><strong id="k-transfers">0건</strong></div>
+        <div><span>이체 금액</span><strong id="k-volume">0P</strong></div>
+        <div><span>중복 거래</span><strong id="k-duplicates">0건</strong></div>
+      </div>
+    </section>
+
+    <section class="stage-join" aria-label="참여 QR">
+      <canvas id="qr" width="220" height="220" role="img" aria-label="참여 QR"></canvas>
+      <p><strong>휴대폰으로 참여</strong><span id="join-url"></span></p>
+    </section>
+
+    <section class="stage-feed" aria-label="실시간 송금">
+      <h2>실시간 송금 <small>처리한 환경 표시</small></h2>
+      <ol id="feed" class="feed"><li class="placeholder">참여자가 송금하면 여기에 바로 나타납니다.</li></ol>
+    </section>
+
+    <section class="stage-continuity" aria-label="연속성 지표">
+      <h2>이 화면이 겪은 전환</h2>
+      <div class="kpis">
+        <div><span>쓰기 정지 누적</span><strong id="k-blocked">-</strong></div>
+        <div><span>마지막 끊김 공백</span><strong id="k-gap">-</strong></div>
+        <div><span>재접속</span><strong id="k-reconnects">0회</strong></div>
+        <div><span>배경 부하</span><strong id="k-load">0건</strong><small id="k-rate"></small></div>
+      </div>
+      <ol id="timeline" class="timeline"><li class="placeholder">아직 기록이 없습니다.</li></ol>
+    </section>
+  </main>
+  <footer class="stage-foot">모의 포인트 원장입니다. 서버는 기존 메시지 API만 쓰고, 잔액은 모든 화면이 같은 거래 기록을 같은 규칙으로 계산한 값입니다.</footer>
+</body>
+</html>
