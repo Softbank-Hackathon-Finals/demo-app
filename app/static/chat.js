@@ -6,7 +6,8 @@ const cursor = new MessageCursor();
 const rendered = new Map();
 const pending = new Set();
 const rasterTypes = new Set(['image/png', 'image/jpeg', 'image/gif', 'image/webp']);
-let renderedFloor = 0, socket, reconnectTimer, handshakeTimer, reconnectAttempt = 0;
+let renderedFloor = 0, socket, reconnectTimer, handshakeTimer, silenceTimer, reconnectAttempt = 0;
+let supportsHeartbeat = false;
 let connected = false, blocked = false, previewUrl, stopping = false;
 let uploadsEnabled = false;
 
@@ -87,9 +88,20 @@ $('log').onscroll = () => {
   if ($('log').scrollHeight - $('log').scrollTop - $('log').clientHeight < 70) $('jump').hidden = true;
 };
 
+function observedTraffic(ws) {
+  clearTimeout(silenceTimer);
+  if (!supportsHeartbeat) return;
+  silenceTimer = setTimeout(() => {
+    if (socket !== ws || stopping) return;
+    connectionState(false);
+    connect();
+  }, 15000);
+}
+
 function connect() {
   if (stopping) return;
-  clearTimeout(reconnectTimer); clearTimeout(handshakeTimer);
+  clearTimeout(reconnectTimer); clearTimeout(handshakeTimer); clearTimeout(silenceTimer);
+  supportsHeartbeat = false;
   connectionState(false);
   if (!navigator.onLine) { connectionState(false); return; }
   const previous = socket;
@@ -104,22 +116,27 @@ function connect() {
       if (typeof event.data !== 'string' || event.data.length > 2 * 1024 * 1024) throw new Error('invalid_frame');
       const data = JSON.parse(event.data);
       if (data.type === 'hello') {
+        // Older servers do not promise periodic traffic. Only the exact supported
+        // capability starts a receive-silence deadline; it grants no write access.
+        if (data.heartbeat_interval_seconds !== undefined && data.heartbeat_interval_seconds !== 5) throw new Error('invalid_heartbeat');
+        supportsHeartbeat = data.heartbeat_interval_seconds === 5;
         status(data); clearTimeout(handshakeTimer); reconnectAttempt = 0; connectionState(true);
       } else if (data.type === 'status') status(data);
       else if (data.type === 'messages') append(cursor.accept(data.items));
       else throw new Error('unknown_frame');
+      observedTraffic(ws);
     } catch {
-      $('feedback').textContent = '응답을 확인할 수 없어 다시 연결합니다.'; ws.close();
+      $('feedback').textContent = '응답을 확인할 수 없어 다시 연결합니다.'; connectionState(false); ws.close();
     }
   };
   ws.onerror = () => ws.close();
   ws.onclose = () => {
     if (socket !== ws || stopping) return;
-    clearTimeout(handshakeTimer); connectionState(false);
+    clearTimeout(handshakeTimer); clearTimeout(silenceTimer); connectionState(false);
     reconnectTimer = setTimeout(connect, Math.min(500 * 2 ** Math.min(reconnectAttempt++, 4), 5000) + Math.random() * 200);
   };
 }
-window.addEventListener('offline', () => { connectionState(false); socket?.close(); });
+window.addEventListener('offline', () => { clearTimeout(silenceTimer); connectionState(false); socket?.close(); });
 window.addEventListener('online', connect);
 document.addEventListener('visibilitychange', () => { if (!document.hidden) connect(); });
 
@@ -218,6 +235,6 @@ $('copy-link').onclick = async () => {
   catch { $('share-url').select(); $('share-note').textContent = '주소를 선택했습니다. 직접 복사해 주세요.'; }
 };
 window.addEventListener('beforeunload', (event) => { if (pending.size) { event.preventDefault(); event.returnValue = ''; } });
-window.addEventListener('pagehide', () => { stopping = true; clearTimeout(reconnectTimer); clearTimeout(handshakeTimer); socket?.close(); for (const entry of pending) entry.controller?.abort(); clearPreview(); });
+window.addEventListener('pagehide', () => { stopping = true; clearTimeout(reconnectTimer); clearTimeout(handshakeTimer); clearTimeout(silenceTimer); socket?.close(); for (const entry of pending) entry.controller?.abort(); clearPreview(); });
 window.addEventListener('pageshow', (event) => { if (event.persisted) { stopping = false; connect(); } });
 connect();

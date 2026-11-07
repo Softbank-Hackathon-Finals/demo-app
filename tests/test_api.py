@@ -183,6 +183,7 @@ def test_websocket_resumes_after_last_id(client):
             "env": "aws",
             "write_blocked": False,
             "attachment_upload_enabled": True,
+            "heartbeat_interval_seconds": 5,
         }
         batch = ws.receive_json()
         assert [m["body"] for m in batch["items"]] == ["둘", "셋"]
