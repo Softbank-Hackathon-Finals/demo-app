@@ -159,7 +159,7 @@ def prepare_scans(root, layout, index):
 
 
 def binding(packet, env):
-    expected = {"repository": "Softbank-Hackathon-Finals/demo-chat",
+    expected = {"repository": "Softbank-Hackathon-Finals/demo-app",
                 "base_sha": env["BASE_SHA"], "source_sha": env["SOURCE_SHA"],
                 "workflow_sha": env["WORKFLOW_SHA"], "diff_sha256": env["DIFF_SHA256"],
                 "request_id": env["REQUEST_ID"], "pull_request": int(env["CANDIDATE_PR"])}
