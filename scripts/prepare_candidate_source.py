@@ -12,7 +12,7 @@ if __package__:
 else:
     from prepare_image_source import git
 
-REPOSITORY = "Softbank-Hackathon-Finals/demo-chat"
+REPOSITORY = "Softbank-Hackathon-Finals/demo-app"  # renamed from demo-chat (11/8); GHCR/ECR names stay
 DEPENDENCIES = {"pyproject.toml", "uv.lock", ".python-version"}
 RECIPE = {"Dockerfile", ".dockerignore"}
 
