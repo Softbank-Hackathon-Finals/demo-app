@@ -1,0 +1,18 @@
+{
+  "workflow_run": "https://github.com/Softbank-Hackathon-Finals/demo-app/actions/runs/42441852331",
+  "workflow_commit": "f47d4dd247a7dde6138404b25e63f7891af61282",
+  "workflow_conclusion": "success",
+  "scan_before_publish": true,
+  "scanners": [
+    "vuln",
+    "secret"
+  ],
+  "severity": [
+    "HIGH",
+    "CRITICAL"
+  ],
+  "ignore_unfixed": true,
+  "vulnerability_count": 0,
+  "secret_match_count": 0,
+  "raw_scan_sha256": "479ea272495d557595ea19902a797b13079063e3e3539257dbde2c0014d57f23"
+}

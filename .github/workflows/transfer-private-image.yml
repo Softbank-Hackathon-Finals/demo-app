@@ -7,6 +7,11 @@ on:
         description: Source SHA from the reviewed publication receipt on main
         type: string
         required: true
+      publication_record:
+        description: Reviewed publication directory already on main
+        type: string
+        required: false
+        default: docs/evidence/image-publication-2026-11-03
       source_digest:
         description: Immutable GHCR index digest from that receipt
         type: string
@@ -29,6 +34,7 @@ jobs:
       packages: read
       id-token: write
     env:
+      PUBLICATION_RECORD_ROOT: ${{ inputs.publication_record || 'docs/evidence/image-publication-2026-11-03' }}
       SOURCE_SHA: ${{ inputs.source_sha }}
       SOURCE_DIGEST: ${{ inputs.source_digest }}
       AWS_REGION: ap-northeast-2

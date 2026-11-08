@@ -7,6 +7,7 @@ import pytest
 from scripts.private_image_transfer import (
     IMAGE,
     Failure,
+    publication_root,
     validate_destination,
     validate_record,
     verify_layout,
@@ -97,3 +98,28 @@ def test_different_reviewed_index_is_rejected(tmp_path):
     changed["manifests"] = []
     with pytest.raises(Failure, match="reviewed_index_mismatch"):
         verify_layout(tmp_path, digest, changed)
+
+
+@pytest.mark.parametrize("root", ["docs/evidence/image-publication-2026-11-03", "docs/evidence/image-publication-2026-11-08"])
+def test_publication_root_accepts_only_reviewed_dated_locations(root):
+    assert publication_root(root) == root
+
+
+@pytest.mark.parametrize("root", ["../other", "HEAD:secret", "docs/evidence/image-publication-2026-11-08/../other", "docs/evidence/image-publication-2026-02-30", "docs/evidence/image-publication-2026-11-08\n"])
+def test_publication_root_rejects_other_paths(root):
+    with pytest.raises(Failure):
+        publication_root(root)
+
+
+def test_new_publication_is_separate_from_legacy_default():
+    from scripts.private_image_transfer import RECORD_ROOT
+    assert RECORD_ROOT == "docs/evidence/image-publication-2026-11-03"
+    root = "docs/evidence/image-publication-2026-11-08/"
+    with open(root + "image-receipt.json") as stream:
+        receipt = json.load(stream)
+    with open(root + "scan-summary.json") as stream:
+        scan = json.load(stream)
+    validate_record(receipt, scan, receipt["source_sha"], receipt["digest"])
+    old, _ = publication()
+    with pytest.raises(Failure, match="mismatch"):
+        validate_record(receipt, scan, old["source_sha"], old["digest"])

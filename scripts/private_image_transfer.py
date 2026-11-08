@@ -7,6 +7,7 @@ import pathlib
 import re
 import subprocess
 import sys
+from datetime import date
 
 IMAGE = "ghcr.io/softbank-hackathon-finals/demo-chat"
 RECORD_ROOT = "docs/evidence/image-publication-2026-11-03"
@@ -24,8 +25,20 @@ def run(args, phase, *, input_text=None):
     return result.stdout
 
 
+def publication_root(value=None):
+    value = os.environ.get("PUBLICATION_RECORD_ROOT", RECORD_ROOT) if value is None else value
+    match = re.fullmatch(r"docs/evidence/image-publication-([0-9]{4}-[0-9]{2}-[0-9]{2})", value)
+    if match is None:
+        raise Failure("invalid_publication_record_root")
+    try:
+        date.fromisoformat(match[1])
+    except ValueError:
+        raise Failure("invalid_publication_record_root") from None
+    return value
+
+
 def read_record(name):
-    text = run(["git", "show", f"origin/main:{RECORD_ROOT}/{name}"], "reviewed_record")
+    text = run(["git", "show", f"origin/main:{publication_root()}/{name}"], "reviewed_record")
     return json.loads(text)
 
 
