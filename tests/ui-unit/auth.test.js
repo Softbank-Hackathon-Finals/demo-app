@@ -60,7 +60,7 @@ test('returning from the issuer exchanges the code and keeps the id token', asyn
     return { ok: true, json: async () => ({ id_token: idToken(claims()) }) };
   };
   const back = location(`https://chat.example/?code=abc&state=${login.searchParams.get('state')}`);
-  const result = await finishLogin(config, { storage, location: back, fetchImpl, now: () => 0 });
+  const result = await finishLogin({ storage, location: back, fetchImpl, now: () => 0 });
   assert.equal(result.cleanUrl, '/');
   assert.equal(result.session.name, 'visitor01');
   assert.equal(calls[0][0], config.token_endpoint);
@@ -78,17 +78,42 @@ test('a forged state, another app token or an issuer error never signs in', asyn
   ]) {
     const storage = new Storage();
     await startLogin(config, { storage, location: location() });
-    await assert.rejects(finishLogin(config, { storage, location: location(href), fetchImpl }));
+    await assert.rejects(finishLogin({ storage, location: location(href), fetchImpl }));
     assert.equal(session(storage), null);
   }
   const storage = new Storage();
   const login = new URL(await startLogin(config, { storage, location: location() }));
   const back = location(`https://chat.example/?code=abc&state=${login.searchParams.get('state')}`);
-  await assert.rejects(finishLogin(config, { storage, location: back, fetchImpl: ok }), /token_for_another_app/);
+  await assert.rejects(finishLogin({ storage, location: back, fetchImpl: ok }), /token_for_another_app/);
+});
+
+test('a login finishes with the issuer it started at, whichever side serves the return page', async () => {
+  // 10·50% 동안 요청이 출발지·목적지로 섞인다. 돌아온 페이지가 어느 쪽 설정을 받든,
+  // 코드는 로그인을 시작할 때 남긴 토큰 주소에서 그때의 클라이언트로 바꾼다.
+  const storage = new Storage();
+  const login = new URL(await startLogin(config, { storage, location: location() }));
+  const calls = [];
+  const fetchImpl = async (url, init) => {
+    calls.push([url, Object.fromEntries(new URLSearchParams(init.body))]);
+    return { ok: true, json: async () => ({ id_token: idToken(claims()) }) };
+  };
+  const back = location(`https://chat.example/?code=abc&state=${login.searchParams.get('state')}`);
+  const result = await finishLogin({ storage, location: back, fetchImpl, now: () => 0 });
+  assert.equal(result.session.name, 'visitor01');
+  assert.equal(calls[0][0], config.token_endpoint);
+  assert.equal(calls[0][1].client_id, config.client_id);
+});
+
+test('a login without a remembered token address is not finished against the current page', async () => {
+  // 고치기 전 버전이 남긴 기록에는 토큰 주소가 없다. 어느 쪽 주소로 바꿀지 모르면 다시 로그인하게 한다.
+  const storage = new Storage();
+  storage.setItem('bravo-oidc-pending', JSON.stringify({ state: 's', verifier: 'v', issuer: config.issuer, redirect: 'https://chat.example/' }));
+  const fetchImpl = async () => { throw new Error('must not call'); };
+  await assert.rejects(finishLogin({ storage, location: location('https://chat.example/?code=abc&state=s'), fetchImpl }), /login_state_mismatch/);
 });
 
 test('a normal page load is not treated as a login return', async () => {
-  assert.equal(await finishLogin(config, { storage: new Storage(), location: location('https://chat.example/?x=1') }), null);
+  assert.equal(await finishLogin({ storage: new Storage(), location: location('https://chat.example/?x=1') }), null);
 });
 
 test('an expiring session is treated as signed out', () => {

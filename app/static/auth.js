@@ -40,10 +40,15 @@ export async function pkcePair(random = (bytes) => crypto.getRandomValues(bytes)
 export function redirectUri(location) { return `${location.origin}/`; }
 
 // 로그인 창 주소를 만들고, 돌아왔을 때 맞춰 볼 state와 verifier를 이 탭에만 남긴다.
+// 코드를 바꿀 발급자 · 클라이언트 · 토큰 주소도 함께 남긴다. 이사 중에는 돌아온 페이지가 다른 쪽 앱에서
+// 올 수 있어서, 그때 받은 설정이 아니라 로그인을 시작한 쪽으로 마친다.
 export async function startLogin(config, { storage, location, random }) {
   const { verifier, challenge } = await pkcePair(random);
   const state = base64url((random ?? ((b) => crypto.getRandomValues(b)))(new Uint8Array(16)));
-  storage.setItem(PENDING, JSON.stringify({ state, verifier, issuer: config.issuer, redirect: redirectUri(location) }));
+  storage.setItem(PENDING, JSON.stringify({
+    state, verifier, issuer: config.issuer, client_id: config.client_id,
+    token_endpoint: config.token_endpoint, redirect: redirectUri(location),
+  }));
   const url = new URL(config.authorization_endpoint);
   url.search = new URLSearchParams({
     response_type: 'code', client_id: config.client_id, redirect_uri: redirectUri(location),
@@ -53,7 +58,7 @@ export async function startLogin(config, { storage, location, random }) {
 }
 
 // 로그인 창에서 돌아온 주소(?code=&state=)를 처리한다. 돌아온 게 아니면 아무것도 하지 않는다.
-export async function finishLogin(config, { storage, location, fetchImpl = fetch, now = Date.now }) {
+export async function finishLogin({ storage, location, fetchImpl = fetch, now = Date.now }) {
   const url = new URL(location.href);
   const code = url.searchParams.get('code'), state = url.searchParams.get('state');
   const error = url.searchParams.get('error');
@@ -63,13 +68,13 @@ export async function finishLogin(config, { storage, location, fetchImpl = fetch
   const pending = JSON.parse(storage.getItem(PENDING) || 'null');
   storage.removeItem(PENDING);
   if (error) throw Object.assign(new Error('login_refused'), { cleanUrl });
-  if (!pending || pending.state !== state || pending.issuer !== config.issuer) {
+  if (!pending || pending.state !== state || typeof pending.token_endpoint !== 'string') {
     throw Object.assign(new Error('login_state_mismatch'), { cleanUrl });
   }
-  const response = await fetchImpl(config.token_endpoint, {
+  const response = await fetchImpl(pending.token_endpoint, {
     method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
-      grant_type: 'authorization_code', client_id: config.client_id, code,
+      grant_type: 'authorization_code', client_id: pending.client_id, code,
       redirect_uri: pending.redirect, code_verifier: pending.verifier,
     }).toString(),
   });
@@ -77,7 +82,7 @@ export async function finishLogin(config, { storage, location, fetchImpl = fetch
   const { id_token: token } = await response.json();
   const claims = decodeClaims(token);
   const audience = Array.isArray(claims.aud) ? claims.aud : [claims.aud];
-  if (claims.iss !== config.issuer || !audience.includes(config.client_id)) {
+  if (claims.iss !== pending.issuer || !audience.includes(pending.client_id)) {
     throw Object.assign(new Error('token_for_another_app'), { cleanUrl });
   }
   const current = { token, name: displayName(claims), exp: Number(claims.exp) * 1000 };
