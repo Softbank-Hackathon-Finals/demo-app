@@ -3,25 +3,31 @@ import json
 import time
 from collections.abc import Callable
 
-import boto3
+
+DEFAULT_CREDENTIALS_FILE = "/run/bravo/database/credentials.json"
 
 
-def fetch_db_credentials(secret_id: str) -> tuple[str, str]:
-    """DB 사용자와 비밀번호를 Secrets Manager에서 직접 읽는다.
-
-    플랫폼이 찾아서 OpenBao · ESO 주입으로 고칠 "코드 수정" 등급 의존성으로 일부러 남긴 호출이다(설계 문서 8.10).
-    미리 추상화하거나 환경변수로 바꾸지 않는다.
-    """
-    client = boto3.client("secretsmanager")
-    secret = json.loads(client.get_secret_value(SecretId=secret_id)["SecretString"])
-    return secret["username"], secret["password"]
+def fetch_db_credentials(credentials_file: str = DEFAULT_CREDENTIALS_FILE) -> tuple[str, str]:
+    """Read ESO-injected credentials; never fall back to SDK or environment secrets."""
+    try:
+        with open(credentials_file, encoding="utf-8") as stream:
+            secret = json.load(stream)
+        if not isinstance(secret, dict):
+            raise ValueError
+        username = secret.get("username")
+        password = secret.get("password")
+        if not all(
+            isinstance(value, str) and value.strip() and "\x00" not in value
+            for value in (username, password)
+        ):
+            raise ValueError
+    except (OSError, ValueError, TypeError):
+        raise RuntimeError("Database credentials unavailable or invalid") from None
+    return username, password
 
 
 class DbCredentials:
-    """새 DB 연결마다 쓸 자격 증명. 회전에 대비해 주기적으로, 인증 실패 시에는 즉시 다시 읽는다.
-
-    기존 연결은 비밀번호가 바뀌어도 유지되므로, 이 캐시는 새 연결에만 영향을 준다.
-    """
+    """Cache credentials for new connections, refreshing on expiry or invalidation."""
 
     def __init__(self, fetch: Callable[[], tuple[str, str]], ttl_seconds: float = 300):
         self._fetch = fetch
@@ -33,6 +39,7 @@ class DbCredentials:
     async def get(self) -> tuple[str, str]:
         async with self._lock:
             if self._value is None or time.monotonic() - self._fetched_at > self._ttl:
+                self._value = None
                 self._value = await asyncio.to_thread(self._fetch)
                 self._fetched_at = time.monotonic()
             return self._value

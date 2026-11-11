@@ -1,6 +1,8 @@
 import os
 from dataclasses import dataclass
 
+from app.db_secret import DEFAULT_CREDENTIALS_FILE
+
 
 @dataclass(frozen=True)
 class Settings:
@@ -8,6 +10,7 @@ class Settings:
     db_host: str
     db_port: int
     db_name: str
+    # Legacy attribute name retained for callers; now an injected JSON file path.
     db_secret_id: str
     s3_bucket: str
     s3_endpoint_url: str | None
@@ -44,7 +47,7 @@ class Settings:
             db_host=env["DB_HOST"],
             db_port=int(env.get("DB_PORT", "5432")),
             db_name=env.get("DB_NAME", "chat"),
-            db_secret_id=env["DB_SECRET_ID"],
+            db_secret_id=env.get("DB_CREDENTIALS_FILE", DEFAULT_CREDENTIALS_FILE),
             s3_bucket=env["S3_BUCKET"],
             s3_endpoint_url=env.get("S3_ENDPOINT_URL") or None,
             s3_force_path_style=env.get("S3_FORCE_PATH_STYLE", "false") == "true",
